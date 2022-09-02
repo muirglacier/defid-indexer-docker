@@ -139,16 +139,16 @@ const Indexer = (options) => {
         // Extract and save all metatags for
         // this transaction (if found)
         await saveMeta(tx, blockHash, blockHeight, blockTime, x)
-          .then(() => {
-            const totalIndexed = txs.length;
-            resolve({ success: true, totalIndexed });
-          })
+          .then(() => {})
           .catch((err) => {
             log.error("Failed indexing tx:", tx.txid);
             log.error(err);
-            reject(err);
+            return reject(err);
           });
       }
+
+      const totalIndexed = txs.length;
+      resolve({ success: true, totalIndexed });
     });
   };
 
@@ -236,7 +236,7 @@ const Indexer = (options) => {
             }
           })
           .catch((err) => {
-            reject(err);
+            return reject(err);
           });
       }
 
