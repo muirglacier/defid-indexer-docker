@@ -171,12 +171,14 @@ const Indexer = (options) => {
         db.addBlock(_bl);
         db.addChainLastStats(block.hash, blockHeight);
 
-        await indexTxs(block.tx, block.hash, blockHeight, block.time).catch(
-          (err) => {
+        await indexTxs(block.tx, block.hash, blockHeight, block.time)
+          .then((totalIndexed) => {
+            return totalIndexed;
+          })
+          .catch((err) => {
             log.error(`Failed to index all metadata for ${blockHeight}.`, err);
             throw err;
-          }
-        );
+          });
       })
       .then(async ({ totalIndexed }) => {
         log.info(
