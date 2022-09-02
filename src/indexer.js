@@ -129,7 +129,7 @@ const Indexer = (options) => {
   const indexTxs = (txs, blockHash, blockHeight, blockTime) => {
     return new Promise(async (resolve, reject) => {
       // Parse txs array sequentially
-      for (let x = 0; x < tx.length; ++x) {
+      for (let x = 0; x < txs.length; ++x) {
         let tx = txs[x];
         // Extract and save all metatags for
         // this transaction (if found)
