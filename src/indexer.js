@@ -100,13 +100,18 @@ const Indexer = (options) => {
       // now fix up the vins with proper sender addresses
       for (var i = 0; i < tx.vin.length; ++i) {
         if ("txid" in tx.vin[i]) {
-          const prev = await getVout(tx.vin[i].txid);
-          if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
-            tx.vin[i]["sender"] =
-              prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
-          } else {
-            tx.vin[i]["data"] = "true";
-          }
+          await getVout(tx.vin[i].txid)
+            .then((prev) => {
+              if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
+                tx.vin[i]["sender"] =
+                  prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
+              } else {
+                tx.vin[i]["data"] = "true";
+              }
+            })
+            .catch((err) => {
+              reject(err);
+            });
         }
       }
 
@@ -166,7 +171,12 @@ const Indexer = (options) => {
         db.addBlock(_bl);
         db.addChainLastStats(block.hash, blockHeight);
 
-        return await indexTxs(block.tx, block.hash, blockHeight, block.time);
+        await indexTxs(block.tx, block.hash, blockHeight, block.time).catch(
+          (err) => {
+            log.error(`Failed to index all metadata for ${blockHeight}.`, err);
+            throw err;
+          }
+        );
       })
       .then(async ({ totalIndexed }) => {
         log.info(
