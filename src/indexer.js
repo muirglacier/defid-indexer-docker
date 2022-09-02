@@ -74,42 +74,50 @@ const Indexer = (options) => {
    * @returns {Promise}
    */
   const saveMeta = async (tx, blockHash, blockHeight, blockTime) => {
-    tx["time"] = blockTime;
+    return new Promise(
+      async (resolve, reject) => {
+        tx["time"] = blockTime;
 
-    await getCustomTx(tx.txid, blockHash)
-      .then(async (txcustom) => {
-        if (txcustom?.valid == true) {
-          delete txcustom["blockHash"];
-          delete txcustom["blockHeight"];
-          delete txcustom["blockTime"];
-          delete txcustom["confirmations"];
-          delete txcustom["valid"];
-          tx["customTx"] = txcustom;
+        await getCustomTx(tx.txid, blockHash)
+          .then(async (txcustom) => {
+            if (txcustom?.valid == true) {
+              delete txcustom["blockHash"];
+              delete txcustom["blockHeight"];
+              delete txcustom["blockTime"];
+              delete txcustom["confirmations"];
+              delete txcustom["valid"];
+              tx["customTx"] = txcustom;
 
-          const statefet = getStateChange(tx.txid, blockHeight);
-          await statefet
-            .then((state) => {
-              tx["state"] = state;
-            })
-            .catch((err) => {console.log(err)});
+              const statefet = getStateChange(tx.txid, blockHeight);
+              await statefet
+                .then((state) => {
+                  tx["state"] = state;
+                })
+                .catch((err) => {});
+            }
+          })
+          .catch((err) => {});
+
+        // now fix up the vins with proper sender addresses
+        for (var i = 0; i < tx.vin.length; ++i) {
+          if ("txid" in tx.vin[i]) {
+            const prev = await getVout(tx.vin[i].txid);
+            if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
+              tx.vin[i]["sender"] =
+                prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
+            } else {
+              tx.vin[i]["data"] = "true";
+            }
+          }
         }
-      })
-      .catch((err) => {console.log(err)});
 
-    // now fix up the vins with proper sender addresses
-    for (var i = 0; i < tx.vin.length; ++i) {
-      if ("txid" in tx.vin[i]) {
-        const prev = await getVout(tx.vin[i].txid);
-        if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
-          tx.vin[i]["sender"] =
-            prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
-        } else {
-          tx.vin[i]["data"] = "true";
-        }
+        await db.addTx(tx, blockHash, blockHeight);
+        resolve();
+      },
+      (err, all) => {
+        resolve(all);
       }
-    }
-
-    return db.addTx(tx, blockHash, blockHeight);
+    );
   };
 
   /**
@@ -135,13 +143,9 @@ const Indexer = (options) => {
             .then(() => {
               log.debug("Indexing", "BLOCK:", blockHeight, "TXHASH:", tx.hash);
               // Success
-              if (IDLE_BETWEEN_TXS != 0) {
-                setTimeout(() => {
-                  next(null);
-                }, IDLE_BETWEEN_TXS);
-              } else {
+              setTimeout(() => {
                 next(null);
-              }
+              }, IDLE_BETWEEN_TXS);
             })
             .catch((err) => {
               log.error("Failed indexing tx:", tx.txid);
@@ -171,7 +175,6 @@ const Indexer = (options) => {
    * @returns {Promise<Object>} Return the total meta indexed
    */
   const indexBlock = (blockHeight) => {
-
     return btc("getblockhash", [blockHeight])
       .then((hash) => btc("getblock", [hash, 2]))
       .then(async (block) => {
@@ -207,7 +210,7 @@ const Indexer = (options) => {
     let end = endBlockHeight ? _.parseInt(10, endBlockHeight) : start;
 
     let times = _.add(_.subtract(end, start), 1);
-    if(times > 5000) times=5000;
+    if (times > 5000) times = 5000;
 
     log.info("Syncing blocks.");
     return new Promise((resolve, reject) => {
@@ -226,7 +229,7 @@ const Indexer = (options) => {
 
           // idx starts from 0, will include startingBlock
           const nextBlock = _.add(start, idx);
-          await indexBlock(nextBlock)
+          indexBlock(nextBlock)
             .then(async () => {
               pushCounter++;
               if (pushCounter >= BLOCK_GROUPING) {
@@ -241,9 +244,7 @@ const Indexer = (options) => {
                   return reject(e);
                 }
               }
-              if(next)
-                setTimeout(() => next(), IDLE_BETWEEN_BLOCKS);
-              resolve();
+              setTimeout(() => next(), IDLE_BETWEEN_BLOCKS);
             })
             .catch((err) => {
               reject(err);
@@ -294,15 +295,15 @@ const Indexer = (options) => {
       .then(() => {
         log.info("Going idle...");
         timeout = setTimeout(() => {
-            monitor();
-          }, MONITOR_IDLE_TIME);
+          monitor();
+        }, MONITOR_IDLE_TIME);
       })
       .catch((e) => {
         log.info("Going idle due to error...");
         log.error(e);
         timeout = setTimeout(() => {
-            monitor();
-          }, MONITOR_IDLE_TIME);
+          monitor();
+        }, MONITOR_IDLE_TIME);
       });
   };
 

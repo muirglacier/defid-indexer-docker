@@ -16,7 +16,7 @@ module.exports = {
     // The starting block height when monitoring.
     startingBlockHeight: 0,
     // Idle time between transactions
-    idleBetweenTxs: 0, // ms
+    idleBetweenTxs: 1, // ms
     // Idle time between blocks
     idleBetweenBlocks: 1, // ms
     // blocks between db write operations
