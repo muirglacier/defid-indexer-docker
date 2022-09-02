@@ -23,6 +23,11 @@ process.on("SIGINT", function () {
   graceExit = true;
 });
 
+process.on("SIGKILL", function () {
+  log.info("Trying to gracefully exit the process");
+  graceExit = true;
+});
+
 const Indexer = (options) => {
   /**
    * Get the last block height from blockchain
@@ -212,6 +217,7 @@ const Indexer = (options) => {
 
     const times = _.add(_.subtract(end, start), 1);
 
+    log.info("Syncing blocks.");
     return new Promise((resolve, reject) => {
       timesSeries(
         times,
@@ -277,7 +283,7 @@ const Indexer = (options) => {
                     await db.commitTransaction();
                     await db.shutup();
                     process.exit(0);
-                  } else if (pushCounter == BLOCK_GROUPING) {
+                  } else if (pushCounter >= BLOCK_GROUPING) {
                     // push everything to the DB, and create a new session for the next batch
 
                     try {
@@ -352,10 +358,6 @@ const Indexer = (options) => {
           return null;
         }
         return indexBlocks(startBlockHeight, btcHeight);
-      })
-      .then(() => {
-        log.info("Indexing possible errored blocks");
-        return indexErroredBlocks();
       })
       .then(() => {
         log.info("Going idle...");
