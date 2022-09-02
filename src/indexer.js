@@ -254,7 +254,7 @@ const Indexer = (options) => {
   const monitor = async () => {
     log.info("Checking for new blocks");
     // Find the last btc height
-    return Promise.all([db.getIndexedBlockHeight(), getBtcBlockHeight()])
+    await Promise.all([db.getIndexedBlockHeight(), getBtcBlockHeight()])
       .then(async ([indexedHeight, btcHeight]) => {
         let startBlockHeight = _.max([
           STARTING_BLOCK_HEIGHT,
