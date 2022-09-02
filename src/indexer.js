@@ -15,13 +15,7 @@ const MONITOR_IDLE_TIME = _.get("index.monitorIdleTime", config); // checks for 
 const BLOCK_GROUPING = _.get("index.blockGrouping", config);
 
 let pushCounter = 0;
-let graceExit = false;
 let timeout = null;
-
-process.on("SIGINT", function () {
-  log.info("Trying to gracefully exit the process");
-  graceExit = true;
-});
 
 const Indexer = (options) => {
   /**
@@ -97,10 +91,10 @@ const Indexer = (options) => {
             .then((state) => {
               tx["state"] = state;
             })
-            .catch((err) => {});
+            .catch((err) => {console.log(err)});
         }
       })
-      .catch((err) => {});
+      .catch((err) => {console.log(err)});
 
     // now fix up the vins with proper sender addresses
     for (var i = 0; i < tx.vin.length; ++i) {
@@ -177,12 +171,14 @@ const Indexer = (options) => {
    * @returns {Promise<Object>} Return the total meta indexed
    */
   const indexBlock = (blockHeight) => {
+
     return btc("getblockhash", [blockHeight])
       .then((hash) => btc("getblock", [hash, 2]))
       .then(async (block) => {
         _bl = JSON.parse(JSON.stringify(block));
         await db.addBlock(_bl);
         await db.addChainLastStats(block.hash, blockHeight);
+
         return indexTxs(block.tx, block.hash, blockHeight, block.time);
       })
       .then(async ({ totalIndexed }) => {
@@ -210,20 +206,14 @@ const Indexer = (options) => {
     let start = _.parseInt(10, startBlockHeight);
     let end = endBlockHeight ? _.parseInt(10, endBlockHeight) : start;
 
-    const times = _.add(_.subtract(end, start), 1);
+    let times = _.add(_.subtract(end, start), 1);
+    if(times > 5000) times=5000;
 
     log.info("Syncing blocks.");
     return new Promise((resolve, reject) => {
       timesSeries(
         times,
         async (idx, next) => {
-          if (graceExit == true) {
-            db.shutup().then(() => {
-              process.exit(0);
-            });
-            return;
-          }
-
           // start new mongodb transaction for bulk writes
           if (idx == 0) {
             try {
@@ -236,14 +226,10 @@ const Indexer = (options) => {
 
           // idx starts from 0, will include startingBlock
           const nextBlock = _.add(start, idx);
-          indexBlock(nextBlock)
+          await indexBlock(nextBlock)
             .then(async () => {
               pushCounter++;
-              if (graceExit == true) {
-                await db.commitTransaction();
-                await db.shutup();
-                process.exit(0);
-              } else if (pushCounter >= BLOCK_GROUPING) {
+              if (pushCounter >= BLOCK_GROUPING) {
                 // push everything to the DB, and create a new session for the next batch
                 await db.commitTransaction();
 
@@ -255,61 +241,12 @@ const Indexer = (options) => {
                   return reject(e);
                 }
               }
-              if (IDLE_BETWEEN_BLOCKS > 0)
+              if(next)
                 setTimeout(() => next(), IDLE_BETWEEN_BLOCKS);
-              else next();
+              resolve();
             })
-            .catch(async (err) => {
-              if (graceExit == true) {
-                await db.abortTransaction();
-                db.shutup();
-                process.exit(0);
-              }
-
-              // Attempt to index once more. If it
-              // failed, continue the list, and it will
-              // be handled later.
-              console.log(err);
-              log.info("Attempt to re-index.", nextBlock);
-              indexBlock(nextBlock)
-                .then(async () => {
-                  pushCounter++;
-                  if (graceExit == true) {
-                    await db.commitTransaction();
-                    await db.shutup();
-                    process.exit(0);
-                  } else if (pushCounter >= BLOCK_GROUPING) {
-                    // push everything to the DB, and create a new session for the next batch
-
-                    try {
-                      await db.commitTransaction();
-                    } catch (e) {
-                      await db.abortTransaction();
-                      return reject(e);
-                    }
-
-                    pushCounter = 0;
-
-                    try {
-                      db.startTransaction();
-                    } catch (e) {
-                      await db.abortTransaction();
-                      return reject(e);
-                    }
-                  }
-                  if (IDLE_BETWEEN_BLOCKS > 0)
-                    setTimeout(() => next(), IDLE_BETWEEN_BLOCKS);
-                  else next();
-                })
-                .catch(async (err) => {
-                  await db.abortTransaction();
-                  log.info(`Failed again to index: ${nextBlock}. Throwing`);
-                  if (graceExit == true) {
-                    db.shutup();
-                    process.exit(0);
-                  }
-                  reject(err);
-                });
+            .catch((err) => {
+              reject(err);
             });
         },
         async (res) => {
@@ -356,28 +293,14 @@ const Indexer = (options) => {
       })
       .then(() => {
         log.info("Going idle...");
-        if (graceExit == true) {
-          clearTimeout(timeout);
-          db.shutup().then(() => {
-            process.exit(0);
-          });
-          return;
-        } else
-          timeout = setTimeout(() => {
+        timeout = setTimeout(() => {
             monitor();
           }, MONITOR_IDLE_TIME);
       })
       .catch((e) => {
         log.info("Going idle due to error...");
         log.error(e);
-        if (graceExit == true) {
-          clearTimeout(timeout);
-          db.shutup().then(() => {
-            process.exit(0);
-          });
-          return;
-        } else
-          timeout = setTimeout(() => {
+        timeout = setTimeout(() => {
             monitor();
           }, MONITOR_IDLE_TIME);
       });
