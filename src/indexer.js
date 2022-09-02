@@ -145,6 +145,7 @@ const Indexer = (options) => {
           })
           .catch((err) => {
             log.error("Failed indexing tx:", tx.txid);
+            log.error(err);
             reject(err);
           });
       }
@@ -164,27 +165,33 @@ const Indexer = (options) => {
    * @returns {Promise<Object>} Return the total meta indexed
    */
   const indexBlock = (blockHeight) => {
-    return btc("getblockhash", [blockHeight])
-      .then((hash) => btc("getblock", [hash, 2]))
-      .then(async (block) => {
-        _bl = JSON.parse(JSON.stringify(block));
-        db.addBlock(_bl);
-        db.addChainLastStats(block.hash, blockHeight);
+    return new Promise((resolve, reject) => {
+      btc("getblockhash", [blockHeight])
+        .then((hash) => btc("getblock", [hash, 2]))
+        .then(async (block) => {
+          _bl = JSON.parse(JSON.stringify(block));
+          db.addBlock(_bl);
+          db.addChainLastStats(block.hash, blockHeight);
 
-        await indexTxs(block.tx, block.hash, blockHeight, block.time).catch(
-          (err) => {
-            log.error(`Failed to index all metadata for ${blockHeight}.`, err);
-            throw err;
-          }
-        );
-      })
-      .then(() => {
-        log.info(`Finished ${blockHeight}.`);
-      })
-      .catch((err) => {
-        log.error(`Failed to index all metadata for ${blockHeight}.`, err);
-        throw err;
-      });
+          await indexTxs(block.tx, block.hash, blockHeight, block.time).catch(
+            (err) => {
+              log.error(
+                `Failed to index all metadata for ${blockHeight}.`,
+                err
+              );
+              reject(err);
+            }
+          );
+        })
+        .then(() => {
+          log.info(`Finished ${blockHeight}.`);
+          resolve();
+        })
+        .catch((err) => {
+          log.error(`Failed to index all metadata for ${blockHeight}.`, err);
+          reject(err);
+        });
+    });
   };
 
   /**
@@ -260,8 +267,8 @@ const Indexer = (options) => {
   const monitor = async () => {
     log.info("Checking for new blocks");
     // Find the last btc height
-    await Promise.all([db.getIndexedBlockHeight(), getBtcBlockHeight()])
-      .then(async ([indexedHeight, btcHeight]) => {
+    await Promise.all([db.getIndexedBlockHeight(), getBtcBlockHeight()]).then(
+      async ([indexedHeight, btcHeight]) => {
         let startBlockHeight = _.max([
           STARTING_BLOCK_HEIGHT,
           indexedHeight + 1,
@@ -275,23 +282,22 @@ const Indexer = (options) => {
           log.info("No new blocks are generated.");
           return null;
         }
-        await indexBlocks(startBlockHeight, btcHeight).catch((err) => {
-          throw err;
-        });
-      })
-      .then(() => {
-        log.info("Going idle...");
-        timeout = setTimeout(() => {
-          monitor();
-        }, MONITOR_IDLE_TIME);
-      })
-      .catch((e) => {
-        log.info("Going idle due to error...");
-        log.error(e);
-        timeout = setTimeout(() => {
-          monitor();
-        }, MONITOR_IDLE_TIME);
-      });
+        await indexBlocks(startBlockHeight, btcHeight)
+          .then(() => {
+            log.info("Going idle...");
+            timeout = setTimeout(() => {
+              monitor();
+            }, MONITOR_IDLE_TIME);
+          })
+          .catch((e) => {
+            log.info("Going idle due to error...");
+            log.error(e);
+            timeout = setTimeout(() => {
+              monitor();
+            }, MONITOR_IDLE_TIME);
+          });
+      }
+    );
   };
 
   // API
