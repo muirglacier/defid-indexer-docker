@@ -1,4 +1,3 @@
-const { mapSeries, timesSeries } = require("async");
 const _ = require("lodash/fp");
 const process = require("process");
 
@@ -73,51 +72,47 @@ const Indexer = (options) => {
    * @param {Number} blockHeight Block Height
    * @returns {Promise}
    */
-  const saveMeta = async (tx, blockHash, blockHeight, blockTime) => {
-    return new Promise(
-      async (resolve, reject) => {
-        tx["time"] = blockTime;
+  const saveMeta = async (tx, blockHash, blockHeight, blockTime, n) => {
+    return new Promise(async (resolve, reject) => {
+      tx["time"] = blockTime;
+      tx["n"] = n;
 
-        await getCustomTx(tx.txid, blockHash)
-          .then(async (txcustom) => {
-            if (txcustom?.valid == true) {
-              delete txcustom["blockHash"];
-              delete txcustom["blockHeight"];
-              delete txcustom["blockTime"];
-              delete txcustom["confirmations"];
-              delete txcustom["valid"];
-              tx["customTx"] = txcustom;
+      await getCustomTx(tx.txid, blockHash)
+        .then(async (txcustom) => {
+          if (txcustom?.valid == true) {
+            delete txcustom["blockHash"];
+            delete txcustom["blockHeight"];
+            delete txcustom["blockTime"];
+            delete txcustom["confirmations"];
+            delete txcustom["valid"];
+            tx["customTx"] = txcustom;
 
-              const statefet = getStateChange(tx.txid, blockHeight);
-              await statefet
-                .then((state) => {
-                  tx["state"] = state;
-                })
-                .catch((err) => {});
-            }
-          })
-          .catch((err) => {});
+            const statefet = getStateChange(tx.txid, blockHeight);
+            await statefet
+              .then((state) => {
+                tx["state"] = state;
+              })
+              .catch((err) => {});
+          }
+        })
+        .catch((err) => {});
 
-        // now fix up the vins with proper sender addresses
-        for (var i = 0; i < tx.vin.length; ++i) {
-          if ("txid" in tx.vin[i]) {
-            const prev = await getVout(tx.vin[i].txid);
-            if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
-              tx.vin[i]["sender"] =
-                prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
-            } else {
-              tx.vin[i]["data"] = "true";
-            }
+      // now fix up the vins with proper sender addresses
+      for (var i = 0; i < tx.vin.length; ++i) {
+        if ("txid" in tx.vin[i]) {
+          const prev = await getVout(tx.vin[i].txid);
+          if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
+            tx.vin[i]["sender"] =
+              prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
+          } else {
+            tx.vin[i]["data"] = "true";
           }
         }
-
-        await db.addTx(tx, blockHash, blockHeight);
-        resolve();
-      },
-      (err, all) => {
-        resolve(all);
       }
-    );
+
+      db.addTx(tx, blockHash, blockHeight);
+      resolve();
+    });
   };
 
   /**
@@ -132,33 +127,22 @@ const Indexer = (options) => {
    * @returns {Promise<Object>} { totalIndexed }
    */
   const indexTxs = (txs, blockHash, blockHeight, blockTime) => {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       // Parse txs array sequentially
-      mapSeries(
-        txs,
-        (tx, next) => {
-          // Extract and save all metatags for
-          // this transaction (if found)
-          saveMeta(tx, blockHash, blockHeight, blockTime)
-            .then(() => {
-              log.debug("Indexing", "BLOCK:", blockHeight, "TXHASH:", tx.hash);
-              // Success
-              setTimeout(() => {
-                next(null);
-              }, IDLE_BETWEEN_TXS);
-            })
-            .catch((err) => {
-              log.error("Failed indexing tx:", tx.txid);
-              next(err);
-            });
-        },
-        (err, all) => {
-          if (err) return reject(err);
-          // Resolve
-          const totalIndexed = txs.length;
-          resolve({ success: !err, totalIndexed });
-        }
-      );
+      for (let x = 0; x < tx.length; ++x) {
+        let tx = txs[x];
+        // Extract and save all metatags for
+        // this transaction (if found)
+        await saveMeta(tx, blockHash, blockHeight, blockTime, x)
+          .then(() => {
+            const totalIndexed = txs.length;
+            resolve({ success: !err, totalIndexed });
+          })
+          .catch((err) => {
+            log.error("Failed indexing tx:", tx.txid);
+            reject(err);
+          });
+      }
     });
   };
 
@@ -179,8 +163,8 @@ const Indexer = (options) => {
       .then((hash) => btc("getblock", [hash, 2]))
       .then(async (block) => {
         _bl = JSON.parse(JSON.stringify(block));
-        await db.addBlock(_bl);
-        await db.addChainLastStats(block.hash, blockHeight);
+        db.addBlock(_bl);
+        db.addChainLastStats(block.hash, blockHeight);
 
         return indexTxs(block.tx, block.hash, blockHeight, block.time);
       })
@@ -210,57 +194,52 @@ const Indexer = (options) => {
     let end = endBlockHeight ? _.parseInt(10, endBlockHeight) : start;
 
     let times = _.add(_.subtract(end, start), 1);
-    if (times > 5000) times = 5000;
 
     log.info("Syncing blocks.");
-    return new Promise((resolve, reject) => {
-      timesSeries(
-        times,
-        async (idx, next) => {
-          // start new mongodb transaction for bulk writes
-          if (idx == 0) {
-            try {
-              db.startTransaction();
-            } catch (e) {
-              await db.abortTransaction();
-              return reject(e);
-            }
-          }
-
-          // idx starts from 0, will include startingBlock
-          const nextBlock = _.add(start, idx);
-          indexBlock(nextBlock)
-            .then(async () => {
-              pushCounter++;
-              if (pushCounter >= BLOCK_GROUPING) {
-                // push everything to the DB, and create a new session for the next batch
-                await db.commitTransaction();
-
-                pushCounter = 0;
-                try {
-                  db.startTransaction();
-                } catch (e) {
-                  await db.abortTransaction();
-                  return reject(e);
-                }
-              }
-              setTimeout(() => next(), IDLE_BETWEEN_BLOCKS);
-            })
-            .catch((err) => {
-              reject(err);
-            });
-        },
-        async (res) => {
-          pushCounter = 0;
+    return new Promise(async (resolve, reject) => {
+      for (let idx = 0; i < times; ++i) {
+        // start new mongodb transaction for bulk writes
+        if (idx == 0) {
           try {
-            await db.commitTransaction();
+            db.startTransaction();
           } catch (e) {
             await db.abortTransaction();
             return reject(e);
           }
-          resolve();
         }
-      );
+
+        // idx starts from 0, will include startingBlock
+        const nextBlock = _.add(start, idx);
+        await indexBlock(nextBlock)
+          .then(async () => {
+            pushCounter++;
+            if (pushCounter >= BLOCK_GROUPING) {
+              // push everything to the DB, and create a new session for the next batch
+              await db.commitTransaction();
+
+              pushCounter = 0;
+              try {
+                db.startTransaction();
+              } catch (e) {
+                await db.abortTransaction();
+                return reject(e);
+              }
+            }
+            setTimeout(() => next(), IDLE_BETWEEN_BLOCKS);
+          })
+          .catch((err) => {
+            reject(err);
+          });
+      }
+
+      pushCounter = 0;
+      try {
+        await db.commitTransaction();
+      } catch (e) {
+        await db.abortTransaction();
+        return reject(e);
+      }
+      resolve();
     });
   };
 
@@ -276,7 +255,7 @@ const Indexer = (options) => {
     log.info("Checking for new blocks");
     // Find the last btc height
     return Promise.all([db.getIndexedBlockHeight(), getBtcBlockHeight()])
-      .then(([indexedHeight, btcHeight]) => {
+      .then(async ([indexedHeight, btcHeight]) => {
         let startBlockHeight = _.max([
           STARTING_BLOCK_HEIGHT,
           indexedHeight + 1,
@@ -290,7 +269,9 @@ const Indexer = (options) => {
           log.info("No new blocks are generated.");
           return null;
         }
-        return indexBlocks(startBlockHeight, btcHeight);
+        await indexBlocks(startBlockHeight, btcHeight).catch((err) => {
+          throw err;
+        });
       })
       .then(() => {
         log.info("Going idle...");
