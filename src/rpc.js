@@ -1,9 +1,9 @@
-const jsonRpc = require('node-json-rpc2')
+const jsonRpc = require("node-json-rpc2");
 
-const { rpc } = require('../config')
-const log = require('./logger')
+const { rpc } = require("../config");
+const log = require("./logger");
 
-const client = new jsonRpc.Client(rpc)
+const client = new jsonRpc.Client(rpc);
 
 /**
  * Rpc client wrapper, to promisify the rpc calls
@@ -15,15 +15,15 @@ const client = new jsonRpc.Client(rpc)
  * @returns {Promise}
  */
 const call = (method, params = []) => {
-  log.debug(`[${method}]`, params[0])
+  log.debug(`[${method}]`, params[0]);
   return new Promise((resolve, reject) => {
     client.call({ method, params }, (err, res) => {
       if (err) {
-        return reject(err)
+        return reject(err);
       }
-      resolve(res.result)
-    })
-  })
-}
+      resolve(res.result);
+    });
+  });
+};
 
-module.exports = call
+module.exports = call;
