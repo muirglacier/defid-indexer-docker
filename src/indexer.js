@@ -136,7 +136,7 @@ const Indexer = (options) => {
         await saveMeta(tx, blockHash, blockHeight, blockTime, x)
           .then(() => {
             const totalIndexed = txs.length;
-            resolve({ success: !err, totalIndexed });
+            resolve({ success: true, totalIndexed });
           })
           .catch((err) => {
             log.error("Failed indexing tx:", tx.txid);
