@@ -166,7 +166,7 @@ const Indexer = (options) => {
         db.addBlock(_bl);
         db.addChainLastStats(block.hash, blockHeight);
 
-        return indexTxs(block.tx, block.hash, blockHeight, block.time);
+        await indexTxs(block.tx, block.hash, blockHeight, block.time);
       })
       .then(async ({ totalIndexed }) => {
         log.info(
