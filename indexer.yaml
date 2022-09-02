@@ -16,30 +16,30 @@ spec:
                 values:
                   - defilense.com
   containers:
-    env:
-      - name: USER
-        valueFrom:
-          secretKeyRef:
-            name: indexer-secrets
-            key: USER
-            optional: false 
-      - name: PASS
-        valueFrom:
-          secretKeyRef:
-            name: indexer-secrets
-            key: PASS
-            optional: false
-      - name: HOST
-        valueFrom:
-          secretKeyRef:
-            name: indexer-secrets
-            key: HOST
-            optional: false 
-      - name: MONGODB
-        valueFrom:
-          secretKeyRef:
-            name: indexer-secrets
-            key: MONGODB
-            optional: false 
     - name: defid-indexer-docker
       image: muirglacier/defid-indexer:latest
+      env:
+        - name: USER
+          valueFrom:
+            secretKeyRef:
+              name: indexer-secrets
+              key: USER
+              optional: false
+        - name: PASS
+          valueFrom:
+            secretKeyRef:
+              name: indexer-secrets
+              key: PASS
+              optional: false
+        - name: HOST
+          valueFrom:
+            secretKeyRef:
+              name: indexer-secrets
+              key: HOST
+              optional: false
+        - name: MONGODB
+          valueFrom:
+            secretKeyRef:
+              name: indexer-secrets
+              key: MONGODB
+              optional: false
