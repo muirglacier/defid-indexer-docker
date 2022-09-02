@@ -197,7 +197,7 @@ const Indexer = (options) => {
 
     log.info("Syncing blocks.");
     return new Promise(async (resolve, reject) => {
-      for (let idx = 0; i < times; ++i) {
+      for (let idx = 0; idx < times; ++idx) {
         // start new mongodb transaction for bulk writes
         if (idx == 0) {
           try {
