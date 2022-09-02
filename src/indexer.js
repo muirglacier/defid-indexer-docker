@@ -225,7 +225,6 @@ const Indexer = (options) => {
                 return reject(e);
               }
             }
-            setTimeout(() => next(), IDLE_BETWEEN_BLOCKS);
           })
           .catch((err) => {
             reject(err);
