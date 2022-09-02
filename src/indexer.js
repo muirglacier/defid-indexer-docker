@@ -23,11 +23,6 @@ process.on("SIGINT", function () {
   graceExit = true;
 });
 
-process.on("SIGKILL", function () {
-  log.info("Trying to gracefully exit the process");
-  graceExit = true;
-});
-
 const Indexer = (options) => {
   /**
    * Get the last block height from blockchain
