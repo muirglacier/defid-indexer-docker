@@ -275,6 +275,11 @@ const Indexer = (options) => {
         log.info(`Last bitcoin block height: ${btcHeight}`);
         if (startBlockHeight > btcHeight) {
           log.info("No new blocks are generated.");
+          log.info("Going idle...");
+          timeout = setTimeout(() => {
+            monitor();
+          }, MONITOR_IDLE_TIME);
+
           return null;
         }
         await indexBlocks(startBlockHeight, btcHeight)
