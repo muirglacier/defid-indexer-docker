@@ -7,6 +7,8 @@ const database = client.db("defichain");
 const stats = database.collection("stats");
 const txs = database.collection("txs");
 const blocks = database.collection("blocks");
+const accounts = database.collection("accounts");
+const vaults = database.collection("vaults");
 const log = require("./logger");
 
 var session = null;
@@ -16,6 +18,16 @@ var cachedLastStatsUncomitted = null;
 
 var toPushTxn = [];
 var toPushBlocks = [];
+var toPushVault = [];
+var toPushAccounts = [];
+
+const addVault = (vault) => {
+  toPushVault.push(vault);
+};
+
+const addAccount = (vault) => {
+  toPushAccounts.push(vault);
+};
 
 const addTx = (tx, blockHash, blockHeight) => {
   // delete some irrelevant bollocks
@@ -87,6 +99,8 @@ const shutup = async () => {
 const startTransaction = () => {
   toPushBlocks = [];
   toPushTxn = [];
+  toPushAccounts = [];
+  toPushVault = [];
   const transactionOptions = {
     readPreference: "primary",
     readConcern: { level: "local" },
@@ -108,12 +122,20 @@ const commitTransaction = async () => {
     toPushBlocks.length,
     "blocks,",
     toPushTxn.length,
-    "transactions"
+    "transactions",
+    toPushVault.length,
+    "vaults",
+    toPushAccounts.length,
+    "accounts"
   );
   await blocks.insertMany(toPushBlocks, { session });
   toPushBlocks = [];
   await txs.insertMany(toPushTxn, { session });
   toPushTxn = [];
+  await vaults.insertMany(toPushVault, { session });
+  toPushVault = [];
+  await accounts.insertMany(toPushAccounts, { session });
+  toPushAccounts = [];
 
   return session
     .commitTransaction()
@@ -132,6 +154,9 @@ const abortTransaction = () => {
   cachedLastStats = null;
   toPushBlocks = [];
   toPushTxn = [];
+  toPushAccounts = [];
+  toPushVault = [];
+
   return session
     .abortTransaction()
     .then(() => {
