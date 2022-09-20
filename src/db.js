@@ -128,24 +128,29 @@ const commitTransaction = async () => {
     toPushAccounts.length,
     "accounts"
   );
-  await blocks.insertMany(toPushBlocks, { session });
+
+  if (toPushBlocks.length > 0)
+    await blocks.insertMany(toPushBlocks, { session });
   toPushBlocks = [];
-  await txs.insertMany(toPushTxn, { session });
+  if (toPushTxn.length > 0) await txs.insertMany(toPushTxn, { session });
   toPushTxn = [];
-  await vaults.insertMany(toPushVault, { session });
+  if (toPushVault.length > 0) await vaults.insertMany(toPushVault, { session });
   toPushVault = [];
-  await accounts.insertMany(toPushAccounts, { session });
+  if (toPushAccounts.length > 0)
+    await accounts.insertMany(toPushAccounts, { session });
   toPushAccounts = [];
 
   return session
     .commitTransaction()
     .then(() => {
       cachedLastStats = cachedLastStatsUncomitted;
+      cachedLastStatsUncomitted = null;
       session.endSession();
       session = null;
     })
     .catch((err) => {
       cachedLastStats = null;
+      cachedLastStatsUncomitted = null;
       throw err;
     });
 };
