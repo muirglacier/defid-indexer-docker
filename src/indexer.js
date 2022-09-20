@@ -196,58 +196,64 @@ const Indexer = (options) => {
           db.addChainLastStats(block.hash, blockHeight);
 
           await indexTxs(block.tx, block.hash, blockHeight, block.time)
-            .then(() => {
+            .then(async () => {
+              // now do the zero hash block-level statechange
+              const statefet = getStateChange("0", blockHeight);
+              let tx = {
+                blockHeight: blockHeight,
+                time: block.time,
+                n: "0",
+                special: "blk-lvl",
+                hash: "0",
+              };
+              await statefet
+                .then((state) => {
+                  tx["state"] = state;
+                  db.addTx(tx, block.hash, blockHeight);
+                })
+                .catch((err) => {
+                  log.error(
+                    `1 Failed to index vault history for ${blockHeight}.`,
+                    err
+                  );
+                  reject(err);
+                });
+
+              // save vaulthistory for block height
+              const vaults = getVaultsForBlock(blockHeight);
+              await vaults
+                .then((state) => {})
+                .catch((err) => {
+                  log.error(
+                    `2 Failed to index vault history for ${blockHeight}.`,
+                    err
+                  );
+                  reject(err);
+                });
+
+              // save account history for block height
+              const accounts = getAccountsForBlock(blockHeight);
+              await vaults
+                .then((state) => {
+                  if (!Array.isArray(state)) {
+                    return reject("vault object was not an array");
+                  }
+                  state.forEach((element) => {});
+                })
+                .catch((err) => {
+                  log.error(
+                    `3 Failed to index account history for ${blockHeight}.`,
+                    err
+                  );
+                  reject(err);
+                });
+
               log.info(`Finished ${blockHeight}.`);
               resolve();
             })
             .catch((err) => {
               log.error(
                 `Failed to index all metadata for ${blockHeight}.`,
-                err
-              );
-              reject(err);
-            });
-
-          // now do the zero hash block-level statechange
-          const statefet = getStateChange("0", blockHeight);
-          let tx = {
-            blockHeight: blockHeight,
-            time: block.time,
-            n: "0",
-            special: "blk-lvl",
-            hash: "0",
-          };
-          await statefet
-            .then((state) => {
-              tx["state"] = state;
-              db.addTx(tx, block.hash, blockHeight);
-            })
-            .catch((err) => {});
-
-          // save vaulthistory for block height
-          const vaults = getVaultsForBlock(blockHeight);
-          await vaults
-            .then((state) => {})
-            .catch((err) => {
-              log.error(
-                `Failed to index vault history for ${blockHeight}.`,
-                err
-              );
-              reject(err);
-            });
-
-          // save account history for block height
-          const accounts = getAccountsForBlock(blockHeight);
-          await vaults
-            .then((state) => {
-              if (!Array.isArray(state)) {
-                return reject("vault object was not an array");
-              }
-              state.forEach((element) => {});
-            })
-            .catch((err) => {
-              log.error(
-                `Failed to index account history for ${blockHeight}.`,
                 err
               );
               reject(err);
