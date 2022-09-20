@@ -205,6 +205,8 @@ const Indexer = (options) => {
                 n: "0",
                 special: "blk-lvl",
                 hash: "0",
+                vin: [],
+                vout: [],
               };
               await statefet
                 .then((state) => {
