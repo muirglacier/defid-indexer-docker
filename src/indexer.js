@@ -198,7 +198,7 @@ const Indexer = (options) => {
           await indexTxs(block.tx, block.hash, blockHeight, block.time)
             .then(async () => {
               // now do the zero hash block-level statechange
-              const statefet = getStateChange("0", blockHeight);
+              /*const statefet = getStateChange("0", blockHeight);
               let tx = {
                 blockHeight: blockHeight,
                 time: block.time,
@@ -219,7 +219,7 @@ const Indexer = (options) => {
                     err
                   );
                   reject(err);
-                });
+                });*/
 
               // save vaulthistory for block height
               const vaults = getVaultsForBlock(blockHeight);
@@ -260,6 +260,10 @@ const Indexer = (options) => {
               );
               reject(err);
             });
+        })
+        .catch((err) => {
+          log.error(`Failed to index all metadata for ${blockHeight}.`, err);
+          reject(err);
         });
     });
   };
