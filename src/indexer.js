@@ -235,7 +235,7 @@ const Indexer = (options) => {
 
               // save account history for block height
               const accounts = getAccountsForBlock(blockHeight);
-              await vaults
+              await accounts
                 .then((state) => {
                   if (!Array.isArray(state)) {
                     return reject("vault object was not an array");
