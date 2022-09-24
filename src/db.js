@@ -155,12 +155,16 @@ const commitTransaction = async () => {
     });
 };
 
-const abortTransaction = () => {
+const cleanTransaction = () => {
   cachedLastStats = null;
   toPushBlocks = [];
   toPushTxn = [];
   toPushAccounts = [];
   toPushVault = [];
+};
+
+const abortTransaction = () => {
+  cleanTransaction();
 
   return session
     .abortTransaction()
@@ -215,8 +219,11 @@ module.exports = {
   startTransaction,
   commitTransaction,
   abortTransaction,
+  cleanTransaction,
   addTx,
   addBlock,
   addChainLastStats,
   shutup,
+  addAccount,
+  addVault,
 };

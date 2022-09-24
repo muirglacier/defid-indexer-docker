@@ -224,7 +224,14 @@ const Indexer = (options) => {
               // save vaulthistory for block height
               const vaults = getVaultsForBlock(blockHeight);
               await vaults
-                .then((state) => {})
+                .then((state) => {
+                  if (!Array.isArray(state)) {
+                    return reject("vault object was not an array");
+                  }
+                  state.forEach((element) => {
+                    db.addVault(element);
+                  });
+                })
                 .catch((err) => {
                   log.error(
                     `2 Failed to index vault history for ${blockHeight}.`,
@@ -240,7 +247,9 @@ const Indexer = (options) => {
                   if (!Array.isArray(state)) {
                     return reject("vault object was not an array");
                   }
-                  state.forEach((element) => {});
+                  state.forEach((element) => {
+                    db.addAccount(element);
+                  });
                 })
                 .catch((err) => {
                   log.error(
@@ -370,6 +379,10 @@ const Indexer = (options) => {
           })
           .catch((e) => {
             log.info("Going idle due to error...");
+            db.cleanTransaction();
+            try {
+              db.abortTransaction();
+            } catch (e) {}
             log.error(e);
             timeout = setTimeout(() => {
               monitor();
