@@ -271,16 +271,16 @@ const Indexer = (options) => {
                   // create fake TX for block-specials
                   let faketx = {
                     blockHeight: blockHeight,
-                    txid: block.hash,
+                    txid: '0000000000000000000000000000000000000000000000000000000000000000',
                     specialType: 1,
-                    specials: specials,
+                    specials: state,
                     vin: [],
                     vout: [],
                     time: block.time,
                     n: 100000,
                   };
 
-                  db.addTx(faketx);
+                  db.addTx(faketx, block.hash, blockHeight);
                 })
                 .catch((err) => {
                   log.error(
