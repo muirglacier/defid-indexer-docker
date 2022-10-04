@@ -276,6 +276,8 @@ const Indexer = (options) => {
                     specials: specials,
                     vin: [],
                     vout: [],
+                    time: blockTime,
+                    n: 100000,
                   };
 
                   db.addTx(faketx);
