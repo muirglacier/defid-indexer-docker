@@ -120,6 +120,7 @@ const Indexer = (options) => {
         .catch((err) => {});
 
       // now fix up the vins with proper sender addresses
+      let vinvalues = 0;
       for (var i = 0; i < tx.vin.length; ++i) {
         if ("txid" in tx.vin[i]) {
           await getVout(tx.vin[i].txid)
@@ -130,12 +131,21 @@ const Indexer = (options) => {
               } else {
                 tx.vin[i]["data"] = "true";
               }
+              tx.vin[i]["value"] = prev.vout[tx.vin[i].vout].value;
+              vinvalues += prev.vout[tx.vin[i].vout].value;
             })
             .catch((err) => {
               reject(err);
             });
         }
       }
+
+      // now calculate fee paid, and store
+      let voutvalues = 0;
+      for (var i = 0; i < tx.vout.length; ++i) {
+        voutvalues += tx.vout[i].value;
+      }
+      tx["fee"] = (vinvalues - voutvalues);
 
       db.addTx(tx, blockHash, blockHeight);
       resolve();

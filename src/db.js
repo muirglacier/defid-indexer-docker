@@ -9,6 +9,7 @@ const txs = database.collection("txs");
 const blocks = database.collection("blocks");
 const accounts = database.collection("accounts");
 const vaults = database.collection("vaults");
+const specials = database.collection("specials");
 const log = require("./logger");
 
 var session = null;
@@ -20,6 +21,7 @@ var toPushTxn = [];
 var toPushBlocks = [];
 var toPushVault = [];
 var toPushAccounts = [];
+var toPushSpecials = [];
 
 const addVault = (vault) => {
   toPushVault.push(vault);
@@ -28,6 +30,11 @@ const addVault = (vault) => {
 const addAccount = (vault) => {
   toPushAccounts.push(vault);
 };
+
+const addSpecial = (vault) => {
+  toPushSpecials.push(vault);
+};
+
 
 const addTx = (tx, blockHash, blockHeight) => {
   // delete some irrelevant bollocks
@@ -101,6 +108,8 @@ const startTransaction = () => {
   toPushTxn = [];
   toPushAccounts = [];
   toPushVault = [];
+  toPushSpecials = [];
+
   const transactionOptions = {
     readPreference: "primary",
     readConcern: { level: "local" },
@@ -120,13 +129,15 @@ const commitTransaction = async () => {
   log.info(
     "Pushing",
     toPushBlocks.length,
-    "blocks,",
+    "blk,",
     toPushTxn.length,
-    "transactions",
+    "tx",
     toPushVault.length,
     "vaults",
     toPushAccounts.length,
-    "accounts"
+    "acc",
+    toPushSpecials.length,
+    "specials"
   );
 
   if (toPushBlocks.length > 0)
@@ -139,6 +150,9 @@ const commitTransaction = async () => {
   if (toPushAccounts.length > 0)
     await accounts.insertMany(toPushAccounts, { session });
   toPushAccounts = [];
+  if (toPushSpecials.length > 0)
+    await specials.insertMany(toPushSpecials, { session });
+    toPushSpecials = [];
 
   return session
     .commitTransaction()
@@ -161,6 +175,7 @@ const cleanTransaction = () => {
   toPushTxn = [];
   toPushAccounts = [];
   toPushVault = [];
+  toPushSpecials = [];
 };
 
 const abortTransaction = () => {
