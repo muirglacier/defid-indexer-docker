@@ -302,13 +302,13 @@ const Indexer = (options) => {
 
                   // create fake TX for block-specials
                   let faketx = {
-                    blockHeight: blockHeight,
                     txid: nullid,
                     specialType: 1,
                     specials: state,
                     vin: [],
                     vout: [],
                     time: block.time,
+                    state: fakestate,
                     n: 100000,
                   };
 
