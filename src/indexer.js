@@ -276,7 +276,7 @@ const Indexer = (options) => {
                     specials: specials,
                     vin: [],
                     vout: [],
-                    time: blockTime,
+                    time: block.time,
                     n: 100000,
                   };
 
