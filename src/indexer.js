@@ -267,9 +267,16 @@ const Indexer = (options) => {
                   if (!Array.isArray(state)) {
                     return reject("vault object was not an array");
                   }
-                  state.forEach((element) => {
-                    db.addSpecial(element);
-                  });
+
+                  // create fake TX for block-specials
+                  let faketx = {
+                    blockHeight: blockHeight,
+                    txid: block.hash,
+                    specialType: 1,
+                    specials: specials,
+                  };
+
+                  db.addTx(faketx);
                 })
                 .catch((err) => {
                   log.error(
