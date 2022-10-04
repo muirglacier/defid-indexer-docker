@@ -35,7 +35,6 @@ const addSpecial = (vault) => {
   toPushSpecials.push(vault);
 };
 
-
 const addTx = (tx, blockHash, blockHeight) => {
   // delete some irrelevant bollocks
   delete tx["version"];
@@ -152,7 +151,7 @@ const commitTransaction = async () => {
   toPushAccounts = [];
   if (toPushSpecials.length > 0)
     await specials.insertMany(toPushSpecials, { session });
-    toPushSpecials = [];
+  toPushSpecials = [];
 
   return session
     .commitTransaction()
@@ -238,6 +237,7 @@ module.exports = {
   addTx,
   addBlock,
   addChainLastStats,
+  addSpecial,
   shutup,
   addAccount,
   addVault,

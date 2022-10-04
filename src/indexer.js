@@ -64,6 +64,17 @@ const Indexer = (options) => {
   /**
    * Get custom tx
    *
+   * @name getSpecialsForBlock
+   * @function
+   * @returns {something} Vin
+   */
+  const getSpecialsForBlock = (blockHeight) => {
+    return btc("getspecialsforblock", [blockHeight.toString()]);
+  };
+
+  /**
+   * Get custom tx
+   *
    * @name getStateChange
    * @function
    * @returns {something} Vin
@@ -145,7 +156,7 @@ const Indexer = (options) => {
       for (var i = 0; i < tx.vout.length; ++i) {
         voutvalues += tx.vout[i].value;
       }
-      tx["fee"] = (vinvalues - voutvalues);
+      tx["fee"] = vinvalues - voutvalues;
 
       db.addTx(tx, blockHash, blockHeight);
       resolve();
@@ -245,6 +256,24 @@ const Indexer = (options) => {
                 .catch((err) => {
                   log.error(
                     `2 Failed to index vault history for ${blockHeight}.`,
+                    err
+                  );
+                  reject(err);
+                });
+
+              const specials = getSpecialsForBlock(blockHeight);
+              await specials
+                .then((state) => {
+                  if (!Array.isArray(state)) {
+                    return reject("vault object was not an array");
+                  }
+                  state.forEach((element) => {
+                    db.addSpecial(element);
+                  });
+                })
+                .catch((err) => {
+                  log.error(
+                    `2 Failed to index special history for ${blockHeight}.`,
                     err
                   );
                   reject(err);
