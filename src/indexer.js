@@ -263,15 +263,42 @@ const Indexer = (options) => {
 
               const specials = getSpecialsForBlock(blockHeight);
               await specials
-                .then((state) => {
+                .then(async (state) => {
                   if (!Array.isArray(state)) {
                     return reject("vault object was not an array");
+                  }
+
+                  let nullid = '0000000000000000000000000000000000000000000000000000000000000000';
+                  let fakestate = {};
+                  fakestate['state'] = {balance_changes: []};
+                  if (state.length > 0) {
+                    // get state changes for correct balance display,
+                    // but only filter those that matter
+
+                    let lookupOwners = {};
+                    const statefet = getStateChange(nullid, blockHeight);
+                    await statefet
+                      .then((state) => {
+                        state.balance_changes.forEach( (element) => {
+                          if(!(element.owner in lookupOwners))
+                              lookupOwners[element.owner]=[];
+                          lookupOwners[element.owner].push(element);
+                        })
+                      })
+                      .catch((err) => {reject(err)}); // there should be a state
+                      
+                        for(let i=0; i<state.length;++i){
+                        // now only take those out of the map that matter
+                        if(state.owner in lookupOwners) {
+                          fakestate['state']['balance_changes'] = fakestate['state']['balance_changes'].concat(lookupOwners[state.owner]);
+                        }
+                      }
                   }
 
                   // create fake TX for block-specials
                   let faketx = {
                     blockHeight: blockHeight,
-                    txid: '0000000000000000000000000000000000000000000000000000000000000000',
+                    txid: nullid,
                     specialType: 1,
                     specials: state,
                     vin: [],
