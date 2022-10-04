@@ -274,6 +274,8 @@ const Indexer = (options) => {
                     txid: block.hash,
                     specialType: 1,
                     specials: specials,
+                    vin: [],
+                    vout: [],
                   };
 
                   db.addTx(faketx);
