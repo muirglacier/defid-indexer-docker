@@ -271,47 +271,31 @@ const Indexer = (options) => {
                   let nullid =
                     "0000000000000000000000000000000000000000000000000000000000000000";
                   let fakestate = { balance_changes: [] };
+
+                  // todo
                   if (state.length > 0) {
-                    // get state changes for correct balance display,
-                    // but only filter those that matter
+                    state.forEach((element) => {
+                      fakestate.balance_changes.push({
+                        owner: element.owner,
+                        token: element.token,
+                        new_amount: element.new_value,
+                      });
+                    });
 
-                    let lookupOwners = {};
-                    const statefet = getStateChange(nullid, blockHeight);
-                    await statefet
-                      .then((ssstate) => {
-                        ssstate.balance_changes.forEach((element) => {
-                          if (!(element.owner in lookupOwners))
-                            lookupOwners[element.owner] = [];
-                          lookupOwners[element.owner].push(element);
-                        });
-                      })
-                      .catch((err) => {
-                        reject(err);
-                      }); // there should be a state
+                    // create fake TX for block-specials
+                    let faketx = {
+                      txid: nullid,
+                      specialType: 1,
+                      specials: state,
+                      vin: [],
+                      vout: [],
+                      time: block.time,
+                      state: fakestate,
+                      n: 100000,
+                    };
 
-                    for (let i = 0; i < state.length; ++i) {
-                      // now only take those out of the map that matter
-                      if (state.owner in lookupOwners) {
-                        fakestate["balance_changes"] = fakestate[
-                          "balance_changes"
-                        ].concat(lookupOwners[state.owner]);
-                      }
-                    }
+                    db.addTx(faketx, block.hash, blockHeight);
                   }
-
-                  // create fake TX for block-specials
-                  let faketx = {
-                    txid: nullid,
-                    specialType: 1,
-                    specials: state,
-                    vin: [],
-                    vout: [],
-                    time: block.time,
-                    state: fakestate,
-                    n: 100000,
-                  };
-
-                  db.addTx(faketx, block.hash, blockHeight);
                 })
                 .catch((err) => {
                   log.error(
