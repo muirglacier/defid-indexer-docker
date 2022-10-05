@@ -270,8 +270,7 @@ const Indexer = (options) => {
 
                   let nullid =
                     "0000000000000000000000000000000000000000000000000000000000000000";
-                  let fakestate = {};
-                  fakestate["state"] = { balance_changes: [] };
+                  let fakestate = { balance_changes: [] };
                   if (state.length > 0) {
                     // get state changes for correct balance display,
                     // but only filter those that matter
@@ -279,8 +278,8 @@ const Indexer = (options) => {
                     let lookupOwners = {};
                     const statefet = getStateChange(nullid, blockHeight);
                     await statefet
-                      .then((state) => {
-                        state.balance_changes.forEach((element) => {
+                      .then((ssstate) => {
+                        ssstate.balance_changes.forEach((element) => {
                           if (!(element.owner in lookupOwners))
                             lookupOwners[element.owner] = [];
                           lookupOwners[element.owner].push(element);
@@ -293,9 +292,9 @@ const Indexer = (options) => {
                     for (let i = 0; i < state.length; ++i) {
                       // now only take those out of the map that matter
                       if (state.owner in lookupOwners) {
-                        fakestate["state"]["balance_changes"] = fakestate[
-                          "state"
-                        ]["balance_changes"].concat(lookupOwners[state.owner]);
+                        fakestate["balance_changes"] = fakestate[
+                          "balance_changes"
+                        ].concat(lookupOwners[state.owner]);
                       }
                     }
                   }
