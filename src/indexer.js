@@ -64,6 +64,17 @@ const Indexer = (options) => {
   /**
    * Get custom tx
    *
+   * @name getSpecialsForBlock
+   * @function
+   * @returns {something} Vin
+   */
+  const getSpecialsForBlock = (blockHeight) => {
+    return btc("getspecialsforblock", [blockHeight.toString()]);
+  };
+
+  /**
+   * Get custom tx
+   *
    * @name getStateChange
    * @function
    * @returns {something} Vin
@@ -145,7 +156,7 @@ const Indexer = (options) => {
       for (var i = 0; i < tx.vout.length; ++i) {
         voutvalues += tx.vout[i].value;
       }
-      tx["fee"] = (vinvalues - voutvalues);
+      tx["fee"] = vinvalues - voutvalues;
 
       db.addTx(tx, blockHash, blockHeight);
       resolve();
@@ -245,6 +256,50 @@ const Indexer = (options) => {
                 .catch((err) => {
                   log.error(
                     `2 Failed to index vault history for ${blockHeight}.`,
+                    err
+                  );
+                  reject(err);
+                });
+
+              const specials = getSpecialsForBlock(blockHeight);
+              await specials
+                .then(async (state) => {
+                  if (!Array.isArray(state)) {
+                    return reject("vault object was not an array");
+                  }
+
+                  let nullid =
+                    "0000000000000000000000000000000000000000000000000000000000000000";
+                  let fakestate = { balance_changes: [] };
+
+                  // todo
+                  if (state.length > 0) {
+                    state.forEach((element) => {
+                      fakestate.balance_changes.push({
+                        owner: element.owner,
+                        token: element.token,
+                        new_amount: element.new_value,
+                      });
+                    });
+
+                    // create fake TX for block-specials
+                    let faketx = {
+                      txid: nullid,
+                      specialType: 1,
+                      specials: state,
+                      vin: [],
+                      vout: [],
+                      time: block.time,
+                      state: fakestate,
+                      n: 100000,
+                    };
+
+                    db.addTx(faketx, block.hash, blockHeight);
+                  }
+                })
+                .catch((err) => {
+                  log.error(
+                    `2 Failed to index special history for ${blockHeight}.`,
                     err
                   );
                   reject(err);
