@@ -243,6 +243,7 @@ const Indexer = (options) => {
                 });*/
 
               // save vaulthistory for block height
+              /*
               const vaults = getVaultsForBlock(blockHeight);
               await vaults
                 .then((state) => {
@@ -260,12 +261,16 @@ const Indexer = (options) => {
                   );
                   reject(err);
                 });
+              */
+
+              // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
+              db.consolidateDexPrices();
 
               const specials = getSpecialsForBlock(blockHeight);
               await specials
                 .then(async (state) => {
                   if (!Array.isArray(state)) {
-                    return reject("vault object was not an array");
+                    return reject("specials object was not an array");
                   }
 
                   let nullid =

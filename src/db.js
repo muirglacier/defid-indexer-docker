@@ -9,6 +9,7 @@ const txs = database.collection("txs");
 const blocks = database.collection("blocks");
 const accounts = database.collection("accounts");
 const vaults = database.collection("vaults");
+const dexprices = database.collection("dexprices");
 const log = require("./logger");
 
 var session = null;
@@ -20,6 +21,8 @@ var toPushTxn = [];
 var toPushBlocks = [];
 var toPushVault = [];
 var toPushAccounts = [];
+var finalToPushDexPrices = []; // these go to database
+var toPushDexPrices = {}; // these aggregate duplicated within one block
 
 const addVault = (vault) => {
   toPushVault.push(vault);
@@ -27,6 +30,12 @@ const addVault = (vault) => {
 
 const addAccount = (vault) => {
   toPushAccounts.push(vault);
+};
+
+const consolidateDexPrices = () => {
+  Object.keys(toPushDexPrices).forEach((key) => {
+    finalToPushDexPrices.push(toPushDexPrices[key]);
+  });
 };
 
 const addTx = (tx, blockHash, blockHeight) => {
@@ -60,6 +69,34 @@ const addTx = (tx, blockHash, blockHeight) => {
   tx["blockHeight"] = blockHeight;
 
   toPushTxn.push(tx);
+
+  // record dex price if PoolSwap transaction
+  if ("customTx" in tx && tx.customTx.type == "PoolSwap") {
+    tx.reserve_changes.forEach((elem) => {
+      const price = elem.newReserveA / elem.newReserveB;
+      const price_reverse = elem.newReserveB / elem.newReserveA;
+      const volume_a = Math.abs(elem.newReserveA - elem.oldReserveA);
+      const volume_b = Math.abs(elem.newReserveB - elem.oldReserveB);
+      const poolId = elem.poolId;
+
+      let obj = {
+        time: tx.time,
+        blockHeight,
+        price,
+        price_reverse,
+        volume_a,
+        volume_b,
+        poolId,
+      };
+      if (poolId in toPushDexPrices) {
+        const old_volumina = toPushDexPrices[poolId];
+        obj.volume_a += old_volumina.volume_a;
+        obj.volume_b += old_volumina.volume_b;
+      }
+
+      toPushDexPrices[poolId] = obj;
+    });
+  }
 };
 
 const addChainLastStats = (blockHash, blockHeight) => {
@@ -101,6 +138,8 @@ const startTransaction = () => {
   toPushTxn = [];
   toPushAccounts = [];
   toPushVault = [];
+  finalToPushDexPrices = [];
+  toPushDexPrices = {};
 
   const transactionOptions = {
     readPreference: "primary",
@@ -127,7 +166,9 @@ const commitTransaction = async () => {
     toPushVault.length,
     "vaults",
     toPushAccounts.length,
-    "acc"
+    "acc",
+    finalToPushDexPrices.length,
+    "pri"
   );
 
   if (toPushBlocks.length > 0)
@@ -140,6 +181,10 @@ const commitTransaction = async () => {
   if (toPushAccounts.length > 0)
     await accounts.insertMany(toPushAccounts, { session });
   toPushAccounts = [];
+  if (finalToPushDexPrices.length > 0)
+    await dexprices.insertMany(finalToPushDexPrices, { session });
+  finalToPushDexPrices = [];
+  toPushDexPrices = {};
 
   return session
     .commitTransaction()
@@ -162,6 +207,8 @@ const cleanTransaction = () => {
   toPushTxn = [];
   toPushAccounts = [];
   toPushVault = [];
+  finalToPushDexPrices = [];
+  toPushDexPrices = {};
 };
 
 const abortTransaction = () => {
@@ -218,6 +265,7 @@ module.exports = {
   getIndexedBlockHeight,
   getIndexedBlockHash,
   startTransaction,
+  consolidateDexPrices,
   commitTransaction,
   abortTransaction,
   cleanTransaction,
