@@ -11,6 +11,7 @@ const accounts = database.collection("accounts");
 const vaults = database.collection("vaults");
 const dexprices = database.collection("dexprices");
 const log = require("./logger");
+const { cursorTo } = require("readline");
 
 var session = null;
 
@@ -24,6 +25,10 @@ var toPushAccounts = [];
 var finalToPushDexPrices = []; // these go to database
 var toPushDexPrices = {}; // these aggregate duplicated within one block
 
+var DFIUSDT = undefined;
+var DUSDUSDT = undefined;
+var DUSDDFI = undefined;
+
 const addVault = (vault) => {
   toPushVault.push(vault);
 };
@@ -32,10 +37,62 @@ const addAccount = (vault) => {
   toPushAccounts.push(vault);
 };
 
+// must be called before any transaction is added for a specific block
+const preFillMainPoolsFromDB = () => {
+  return new Promise(async (resolve, reject) => {
+    DFIUSDT = undefined;
+    DUSDUSDT = undefined;
+    DUSDDFI = undefined;
+
+    var sort = [["blockHeight", -1.0]];
+    var limit = 1;
+    try {
+      var cursor = dexprices.find({ poolId: 6 }).sort(sort).limit(limit);
+      var cursor2 = dexprices.find({ poolId: 101 }).sort(sort).limit(limit);
+      var cursor3 = dexprices.find({ poolId: 17 }).sort(sort).limit(limit);
+
+      await cursor.forEach(
+        function (doc) {
+          DFIUSDT = doc;
+        },
+        function (err) {
+          reject(err);
+        }
+      );
+      await cursor2.forEach(
+        function (doc) {
+          DUSDUSDT = doc;
+        },
+        function (err) {
+          reject(err);
+        }
+      );
+      await cursor3.forEach(
+        function (doc) {
+          DUSDDFI = doc;
+        },
+        function (err) {
+          reject(err);
+        }
+      );
+    } catch (e) {
+      reject(e);
+    }
+
+    resolve();
+  });
+};
+
+// this must be called at the end of the tx processing
 const consolidateDexPrices = () => {
   Object.keys(toPushDexPrices).forEach((key) => {
     finalToPushDexPrices.push(toPushDexPrices[key]);
   });
+};
+
+// useless proxy function for now
+const addSpecialTx = (tx, blockHash, blockHeight) => {
+  addTx(tx, blockHash, blockHeight);
 };
 
 const addTx = (tx, blockHash, blockHeight) => {
@@ -68,8 +125,6 @@ const addTx = (tx, blockHash, blockHeight) => {
   tx["blockHash"] = blockHash;
   tx["blockHeight"] = blockHeight;
 
-  toPushTxn.push(tx);
-
   // record dex price if PoolSwap transaction
   if ("customTx" in tx && tx.customTx.type == "PoolSwap") {
     tx.reserve_changes.forEach((elem) => {
@@ -95,8 +150,28 @@ const addTx = (tx, blockHash, blockHeight) => {
       }
 
       toPushDexPrices[poolId] = obj;
+
+      // always keep these prices up to date, to attach value to our trades or all transactions in general
+      if (poolId == 6) DFIUSDT = toPushDexPrices[key]; // DFI-USDT POOL
+      else if (poolId == 101) DUSDUSDT = toPushDexPrices[key]; // DUSD-USDT POOL
+      else if (poolId == 17) DUSDDFI = toPushDexPrices[key]; // DUSD-DFI POOL
     });
   }
+
+  // now, all customTX receive a DEX price for the three main pools recorded
+  if (!("state" in tx)) {
+    tx.state = {};
+  }
+
+  if (!("main_pools" in tx.state)) {
+    tx.state.main_pools = [];
+  }
+
+  if (DFIUSDT != undefined) tx.state.main_pools.push(DFIUSDT);
+  if (DUSDDFI != undefined) tx.state.main_pools.push(DUSDDFI);
+  if (DUSDUSDT != undefined) tx.state.main_pools.push(DUSDUSDT);
+
+  toPushTxn.push(tx);
 };
 
 const addChainLastStats = (blockHash, blockHeight) => {
@@ -270,9 +345,11 @@ module.exports = {
   abortTransaction,
   cleanTransaction,
   addTx,
+  addSpecialTx,
   addBlock,
   addChainLastStats,
   shutup,
   addAccount,
   addVault,
+  preFillMainPoolsFromDB,
 };

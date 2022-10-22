@@ -216,6 +216,14 @@ const Indexer = (options) => {
           db.addBlock(_bl);
           db.addChainLastStats(block.hash, blockHeight);
 
+          // get latest 3 main pools (if present) so the first TX will have the latest prices available
+          await db
+            .preFillMainPoolsFromDB()
+            .then(() => {})
+            .catch((reason) => {
+              reject(reason);
+            });
+
           await indexTxs(block.tx, block.hash, blockHeight, block.time)
             .then(async () => {
               // now do the zero hash block-level statechange
@@ -275,7 +283,7 @@ const Indexer = (options) => {
 
                   let nullid =
                     "0000000000000000000000000000000000000000000000000000000000000000";
-                  let fakestate = { balance_changes: [] };
+                  let fakestate = { balance_changes: [], main_pools: [] };
 
                   // todo
                   if (state.length > 0) {
@@ -299,7 +307,7 @@ const Indexer = (options) => {
                       n: 100000,
                     };
 
-                    db.addTx(faketx, block.hash, blockHeight);
+                    db.addSpecialTx(faketx, block.hash, blockHeight);
                   }
                 })
                 .catch((err) => {
