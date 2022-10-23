@@ -48,33 +48,19 @@ const preFillMainPoolsFromDB = () => {
     var limit = 1;
     try {
       var cursor = dexprices.find({ poolId: 6 }).sort(sort).limit(limit);
-      var cursor2 = dexprices.find({ poolId: 101 }).sort(sort).limit(limit);
-      var cursor3 = dexprices.find({ poolId: 17 }).sort(sort).limit(limit);
+      await cursor.forEach((doc) => {
+        DFIUSDT = doc;
+      });
 
-      await cursor.forEach(
-        function (doc) {
-          DFIUSDT = doc;
-        },
-        function (err) {
-          reject(err);
-        }
-      );
-      await cursor2.forEach(
-        function (doc) {
-          DUSDUSDT = doc;
-        },
-        function (err) {
-          reject(err);
-        }
-      );
-      await cursor3.forEach(
-        function (doc) {
-          DUSDDFI = doc;
-        },
-        function (err) {
-          reject(err);
-        }
-      );
+      var cursor2 = dexprices.find({ poolId: 101 }).sort(sort).limit(limit);
+      await cursor2.forEach((doc) => {
+        DUSDUSDT = doc;
+      });
+
+      var cursor3 = dexprices.find({ poolId: 17 }).sort(sort).limit(limit);
+      await cursor3.forEach((doc) => {
+        DUSDDFI = doc;
+      });
     } catch (e) {
       reject(e);
     }

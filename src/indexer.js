@@ -219,133 +219,88 @@ const Indexer = (options) => {
           // get latest 3 main pools (if present) so the first TX will have the latest prices available
           await db
             .preFillMainPoolsFromDB()
-            .then(() => {})
-            .catch((reason) => {
-              reject(reason);
-            });
-
-          await indexTxs(block.tx, block.hash, blockHeight, block.time)
             .then(async () => {
-              // now do the zero hash block-level statechange
-              /*const statefet = getStateChange("0", blockHeight);
-              let tx = {
-                blockHeight: blockHeight,
-                time: block.time,
-                n: "0",
-                special: "blk-lvl",
-                hash: "0",
-                vin: [],
-                vout: [],
-              };
-              await statefet
-                .then((state) => {
-                  tx["state"] = state;
-                  db.addTx(tx, block.hash, blockHeight);
-                })
-                .catch((err) => {
-                  log.error(
-                    `1 Failed to index vault history for ${blockHeight}.`,
-                    err
-                  );
-                  reject(err);
-                });*/
+              await indexTxs(block.tx, block.hash, blockHeight, block.time)
+                .then(async () => {
+                  // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
+                  db.consolidateDexPrices();
 
-              // save vaulthistory for block height
-              /*
-              const vaults = getVaultsForBlock(blockHeight);
-              await vaults
-                .then((state) => {
-                  if (!Array.isArray(state)) {
-                    return reject("vault object was not an array");
-                  }
-                  state.forEach((element) => {
-                    db.addVault(element);
-                  });
-                })
-                .catch((err) => {
-                  log.error(
-                    `2 Failed to index vault history for ${blockHeight}.`,
-                    err
-                  );
-                  reject(err);
-                });
-              */
+                  const specials = getSpecialsForBlock(blockHeight);
+                  await specials
+                    .then(async (state) => {
+                      if (!Array.isArray(state)) {
+                        return reject("specials object was not an array");
+                      }
 
-              // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
-              db.consolidateDexPrices();
+                      let nullid =
+                        "0000000000000000000000000000000000000000000000000000000000000000";
+                      let fakestate = { balance_changes: [], main_pools: [] };
 
-              const specials = getSpecialsForBlock(blockHeight);
-              await specials
-                .then(async (state) => {
-                  if (!Array.isArray(state)) {
-                    return reject("specials object was not an array");
-                  }
+                      // todo
+                      if (state.length > 0) {
+                        state.forEach((element) => {
+                          fakestate.balance_changes.push({
+                            owner: element.owner,
+                            token: element.token,
+                            new_amount: element.new_value,
+                          });
+                        });
 
-                  let nullid =
-                    "0000000000000000000000000000000000000000000000000000000000000000";
-                  let fakestate = { balance_changes: [], main_pools: [] };
+                        // create fake TX for block-specials
+                        let faketx = {
+                          txid: nullid,
+                          specialType: 1,
+                          specials: state,
+                          vin: [],
+                          vout: [],
+                          time: block.time,
+                          state: fakestate,
+                          n: 100000,
+                        };
 
-                  // todo
-                  if (state.length > 0) {
-                    state.forEach((element) => {
-                      fakestate.balance_changes.push({
-                        owner: element.owner,
-                        token: element.token,
-                        new_amount: element.new_value,
-                      });
+                        db.addSpecialTx(faketx, block.hash, blockHeight);
+                      }
+                    })
+                    .catch((err) => {
+                      log.error(
+                        `2 Failed to index special history for ${blockHeight}.`,
+                        err
+                      );
+                      reject(err);
                     });
 
-                    // create fake TX for block-specials
-                    let faketx = {
-                      txid: nullid,
-                      specialType: 1,
-                      specials: state,
-                      vin: [],
-                      vout: [],
-                      time: block.time,
-                      state: fakestate,
-                      n: 100000,
-                    };
+                  // save account history for block height
+                  const accounts = getAccountsForBlock(blockHeight);
+                  await accounts
+                    .then((state) => {
+                      if (!Array.isArray(state)) {
+                        return reject("vault object was not an array");
+                      }
+                      state.forEach((element) => {
+                        db.addAccount(element);
+                      });
+                    })
+                    .catch((err) => {
+                      log.error(
+                        `3 Failed to index account history for ${blockHeight}.`,
+                        err
+                      );
+                      reject(err);
+                    });
 
-                    db.addSpecialTx(faketx, block.hash, blockHeight);
-                  }
+                  log.info(`Finished ${blockHeight}.`);
+                  resolve();
                 })
                 .catch((err) => {
                   log.error(
-                    `2 Failed to index special history for ${blockHeight}.`,
+                    `Failed to index all metadata for ${blockHeight}.`,
                     err
                   );
                   reject(err);
                 });
-
-              // save account history for block height
-              const accounts = getAccountsForBlock(blockHeight);
-              await accounts
-                .then((state) => {
-                  if (!Array.isArray(state)) {
-                    return reject("vault object was not an array");
-                  }
-                  state.forEach((element) => {
-                    db.addAccount(element);
-                  });
-                })
-                .catch((err) => {
-                  log.error(
-                    `3 Failed to index account history for ${blockHeight}.`,
-                    err
-                  );
-                  reject(err);
-                });
-
-              log.info(`Finished ${blockHeight}.`);
-              resolve();
             })
-            .catch((err) => {
-              log.error(
-                `Failed to index all metadata for ${blockHeight}.`,
-                err
-              );
-              reject(err);
+            .catch((reason) => {
+              reject(reason);
             });
         })
         .catch((err) => {
