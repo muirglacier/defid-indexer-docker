@@ -152,9 +152,10 @@ const addTx = (tx, blockHash, blockHeight) => {
       toPushDexPrices[poolId] = obj;
 
       // always keep these prices up to date, to attach value to our trades or all transactions in general
-      if (poolId == 6) DFIUSDT = toPushDexPrices[key]; // DFI-USDT POOL
-      else if (poolId == 101) DUSDUSDT = toPushDexPrices[key]; // DUSD-USDT POOL
-      else if (poolId == 17) DUSDDFI = toPushDexPrices[key]; // DUSD-DFI POOL
+      if (poolId == 6) DFIUSDT = toPushDexPrices[poolId]; // DFI-USDT POOL
+      else if (poolId == 101)
+        DUSDUSDT = toPushDexPrices[poolId]; // DUSD-USDT POOL
+      else if (poolId == 17) DUSDDFI = toPushDexPrices[poolId]; // DUSD-DFI POOL
     });
   }
 
