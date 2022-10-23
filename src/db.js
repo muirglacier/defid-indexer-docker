@@ -127,7 +127,7 @@ const addTx = (tx, blockHash, blockHeight) => {
 
   // record dex price if PoolSwap transaction
   if ("customTx" in tx && tx.customTx.type == "PoolSwap") {
-    tx.reserve_changes.forEach((elem) => {
+    tx.state.reserve_changes.forEach((elem) => {
       const price = elem.newReserveA / elem.newReserveB;
       const price_reverse = elem.newReserveB / elem.newReserveA;
       const volume_a = Math.abs(elem.newReserveA - elem.oldReserveA);
