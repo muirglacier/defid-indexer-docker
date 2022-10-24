@@ -136,21 +136,22 @@ const addTx = (tx, blockHash, blockHeight) => {
         volume_b,
         poolId,
       };
-      if ({ poolId, blockHeight } in toPushDexPrices) {
-        const old_volumina = toPushDexPrices[{ poolId, blockHeight }];
+
+      const keyy = poolId.toString() + "$" + blockHeight.toString();
+      if (keyy in toPushDexPrices) {
+        const old_volumina = toPushDexPrices[keyy];
         obj.volume_a += old_volumina.volume_a;
         obj.volume_b += old_volumina.volume_b;
-        delete toPushDexPrices[{ poolId, blockHeight }];
+        delete toPushDexPrices[keyy];
       }
 
-      toPushDexPrices[{ poolId, blockHeight }] = obj;
+      toPushDexPrices[keyy] = obj;
 
       // always keep these prices up to date, to attach value to our trades or all transactions in general
-      if (poolId == 6)
-        DFIUSDT = toPushDexPrices[{ poolId, blockHeight }]; // DFI-USDT POOL
+      if (poolId == 6) DFIUSDT = toPushDexPrices[keyy]; // DFI-USDT POOL
       else if (poolId == 101)
-        DUSDUSDT = toPushDexPrices[{ poolId, blockHeight }]; // DUSD-USDT POOL
-      else if (poolId == 17) DUSDDFI = toPushDexPrices[{ poolId, blockHeight }]; // DUSD-DFI POOL
+        DUSDUSDT = toPushDexPrices[keyy]; // DUSD-USDT POOL
+      else if (poolId == 17) DUSDDFI = toPushDexPrices[keyy]; // DUSD-DFI POOL
     });
   }
 
