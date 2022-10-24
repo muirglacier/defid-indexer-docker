@@ -288,7 +288,6 @@ const Indexer = (options) => {
                       reject(err);
                     });
 
-                  log.info(`Finished ${blockHeight}.`);
                   resolve();
                 })
                 .catch((err) => {
@@ -345,9 +344,24 @@ const Indexer = (options) => {
             pushCounter++;
             if (pushCounter >= BLOCK_GROUPING) {
               // push everything to the DB, and create a new session for the next batch
-              await db.commitTransaction();
+              await db
+                .commitTransaction(nextBlock)
+                .then(() => {
+                  pushCounter = 0;
+                })
+                .catch(async (reason) => {
+                  log.error("Fatal error during transaction comittment.");
+                  log.error("Error follows:");
+                  log.error(reason.toString());
+                  pushCounter = 0;
 
-              pushCounter = 0;
+                  // abort all transactions
+                  try {
+                    await db.abortTransaction();
+                  } catch (e) {}
+                  reject(reason);
+                });
+
               try {
                 db.startTransaction();
               } catch (e) {
@@ -361,12 +375,25 @@ const Indexer = (options) => {
           });
       }
 
-      pushCounter = 0;
-      try {
-        await db.commitTransaction();
-      } catch (e) {
-        await db.abortTransaction();
-        return reject(e);
+      if (pushCounter >= 0) {
+        await db
+          .commitTransaction(nextBlock)
+          .then(() => {
+            pushCounter = 0;
+          })
+          .catch(async (reason) => {
+            log.error("Fatal error during transaction comittment.");
+            log.error("Error follows:");
+            log.error(reason.toString());
+            pushCounter = 0;
+
+            // abort all transactions
+            try {
+              await db.abortTransaction();
+            } catch (e) {}
+
+            reject(reason);
+          });
       }
       resolve();
     });
@@ -412,7 +439,6 @@ const Indexer = (options) => {
           })
           .catch((e) => {
             log.info("Going idle due to error...");
-            db.cleanTransaction();
             try {
               db.abortTransaction();
             } catch (e) {}

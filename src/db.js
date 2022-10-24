@@ -71,6 +71,7 @@ const preFillMainPoolsFromDB = () => {
 
 // this must be called at the end of the tx processing
 const consolidateDexPrices = () => {
+  finalToPushDexPrices = [];
   Object.keys(toPushDexPrices).forEach((key) => {
     finalToPushDexPrices.push(toPushDexPrices[key]);
   });
@@ -133,6 +134,7 @@ const addTx = (tx, blockHash, blockHeight) => {
         const old_volumina = toPushDexPrices[poolId];
         obj.volume_a += old_volumina.volume_a;
         obj.volume_b += old_volumina.volume_b;
+        delete toPushDexPrices[poolId];
       }
 
       toPushDexPrices[poolId] = obj;
@@ -213,16 +215,16 @@ const startTransaction = () => {
   session.startTransaction(transactionOptions);
 };
 
-const commitTransaction = async () => {
+const commitTransaction = async (blockHeight) => {
   const query = { _id: crypto.createHash("md5").update("stats").digest("hex") };
   await stats.replaceOne(query, cachedLastStatsUncomitted, {
     session: session,
     upsert: true,
   });
   log.info(
-    "Pushing",
+    "#" + blockHeight.toString() + ":",
     toPushBlocks.length,
-    "blk,",
+    "blk",
     toPushTxn.length,
     "tx",
     toPushVault.length,
