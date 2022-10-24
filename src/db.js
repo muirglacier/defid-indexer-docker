@@ -37,7 +37,7 @@ const addAccount = (vault) => {
   toPushAccounts.push(vault);
 };
 
-// must be called before any transaction is added for a specific block
+// must be called before any transaction is added AND at the beginning of each 400 block batch
 const preFillMainPoolsFromDB = () => {
   return new Promise(async (resolve, reject) => {
     DFIUSDT = undefined;
@@ -47,20 +47,26 @@ const preFillMainPoolsFromDB = () => {
     var sort = [["blockHeight", -1.0]];
     var limit = 1;
     try {
-      var cursor = dexprices.find({ poolId: 6 }).sort(sort).limit(limit);
-      await cursor.forEach((doc) => {
-        DFIUSDT = doc;
-      });
+      if (DFIUSDT == undefined) {
+        var cursor = dexprices.find({ poolId: 6 }).sort(sort).limit(limit);
+        await cursor.forEach((doc) => {
+          DFIUSDT = doc;
+        });
+      }
 
-      var cursor2 = dexprices.find({ poolId: 101 }).sort(sort).limit(limit);
-      await cursor2.forEach((doc) => {
-        DUSDUSDT = doc;
-      });
+      if (DUSDUSDT == undefined) {
+        var cursor2 = dexprices.find({ poolId: 101 }).sort(sort).limit(limit);
+        await cursor2.forEach((doc) => {
+          DUSDUSDT = doc;
+        });
+      }
 
-      var cursor3 = dexprices.find({ poolId: 17 }).sort(sort).limit(limit);
-      await cursor3.forEach((doc) => {
-        DUSDDFI = doc;
-      });
+      if (DUSDDFI == undefined) {
+        var cursor3 = dexprices.find({ poolId: 17 }).sort(sort).limit(limit);
+        await cursor3.forEach((doc) => {
+          DUSDDFI = doc;
+        });
+      }
     } catch (e) {
       reject(e);
     }
@@ -130,20 +136,21 @@ const addTx = (tx, blockHash, blockHeight) => {
         volume_b,
         poolId,
       };
-      if (poolId in toPushDexPrices) {
-        const old_volumina = toPushDexPrices[poolId];
+      if ({ poolId, blockHeight } in toPushDexPrices) {
+        const old_volumina = toPushDexPrices[{ poolId, blockHeight }];
         obj.volume_a += old_volumina.volume_a;
         obj.volume_b += old_volumina.volume_b;
-        delete toPushDexPrices[poolId];
+        delete toPushDexPrices[{ poolId, blockHeight }];
       }
 
-      toPushDexPrices[poolId] = obj;
+      toPushDexPrices[{ poolId, blockHeight }] = obj;
 
       // always keep these prices up to date, to attach value to our trades or all transactions in general
-      if (poolId == 6) DFIUSDT = toPushDexPrices[poolId]; // DFI-USDT POOL
+      if (poolId == 6)
+        DFIUSDT = toPushDexPrices[{ poolId, blockHeight }]; // DFI-USDT POOL
       else if (poolId == 101)
-        DUSDUSDT = toPushDexPrices[poolId]; // DUSD-USDT POOL
-      else if (poolId == 17) DUSDDFI = toPushDexPrices[poolId]; // DUSD-DFI POOL
+        DUSDUSDT = toPushDexPrices[{ poolId, blockHeight }]; // DUSD-USDT POOL
+      else if (poolId == 17) DUSDDFI = toPushDexPrices[{ poolId, blockHeight }]; // DUSD-DFI POOL
     });
   }
 
@@ -217,6 +224,10 @@ const startTransaction = () => {
 
 const commitTransaction = async (blockHeight) => {
   const query = { _id: crypto.createHash("md5").update("stats").digest("hex") };
+
+  // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
+  consolidateDexPrices();
+
   await stats.replaceOne(query, cachedLastStatsUncomitted, {
     session: session,
     upsert: true,

@@ -222,9 +222,6 @@ const Indexer = (options) => {
             .then(async () => {
               await indexTxs(block.tx, block.hash, blockHeight, block.time)
                 .then(async () => {
-                  // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
-                  db.consolidateDexPrices();
-
                   const specials = getSpecialsForBlock(blockHeight);
                   await specials
                     .then(async (state) => {
