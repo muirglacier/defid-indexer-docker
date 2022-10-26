@@ -65,6 +65,8 @@ const tokenToPool = async (token) => {
     }
   });
 
+  log.debug("tokenToTool length: " + Object.keys(TOKENTOPOOLMAP).length);
+  log.debug(TOKENTOPOOLMAP);
   if (token.toString() in TOKENTOPOOLMAP) {
     return TOKENTOPOOLMAP[token.toString()];
   } else {
