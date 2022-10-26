@@ -48,29 +48,29 @@ const addAccount = (vault) => {
 const tokenToPool = async (token) => {
   if (token.toString() in TOKENTOPOOLMAP) {
     return TOKENTOPOOLMAP[token.toString()];
-  }
-
-  log.debug("tokenToTool: " + token.toString());
-
-  // this shit is now complicated, we need to find the mapping
-  const pp = await btc("listpoolpairs");
-  const keys = Object.keys(pp);
-  keys.forEach((key) => {
-    const pair = pp[key];
-    if (
-      pair.idTokenA == token.toString() ||
-      pair.idTokenB == token.toString()
-    ) {
-      TOKENTOPOOLMAP[token.toString()] = key;
-    }
-  });
-
-  log.debug("tokenToTool length: " + Object.keys(TOKENTOPOOLMAP).length);
-  log.debug(TOKENTOPOOLMAP);
-  if (token.toString() in TOKENTOPOOLMAP) {
-    return TOKENTOPOOLMAP[token.toString()];
   } else {
-    return undefined;
+    log.debug("tokenToTool: " + token.toString());
+
+    // this shit is now complicated, we need to find the mapping
+    const pp = await btc("listpoolpairs");
+    const keys = Object.keys(pp);
+    keys.forEach((key) => {
+      const pair = pp[key];
+      if (
+        pair.idTokenA == token.toString() ||
+        pair.idTokenB == token.toString()
+      ) {
+        TOKENTOPOOLMAP[token.toString()] = key;
+      }
+    });
+
+    log.debug("tokenToTool length: " + Object.keys(TOKENTOPOOLMAP).length);
+    log.debug(TOKENTOPOOLMAP);
+    if (token.toString() in TOKENTOPOOLMAP) {
+      return TOKENTOPOOLMAP[token.toString()];
+    } else {
+      return undefined;
+    }
   }
 };
 
