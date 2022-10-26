@@ -241,7 +241,7 @@ const addTx = async (tx, blockHash, blockHeight) => {
 
     const ttp = await tokenToPool(e.token);
     if (ttp != undefined) {
-      const ret = retreiveAnyPoolOnDemand(ttp);
+      const ret = await retreiveAnyPoolOnDemand(ttp);
       if (ret != undefined) tx.state.main_pools.push(ret);
     }
   });
