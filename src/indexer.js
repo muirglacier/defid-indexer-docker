@@ -224,7 +224,7 @@ const Indexer = (options) => {
                 .then(async () => {
                   const specials = getSpecialsForBlock(blockHeight);
                   await specials
-                    .then(async (state) => {
+                    .then((state) => {
                       if (!Array.isArray(state)) {
                         return reject("specials object was not an array");
                       }
