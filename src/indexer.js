@@ -374,7 +374,7 @@ const Indexer = (options) => {
 
       if (pushCounter >= 0) {
         await db
-          .commitTransaction(nextBlock)
+          .commitTransaction("final push")
           .then(() => {
             pushCounter = 0;
           })
