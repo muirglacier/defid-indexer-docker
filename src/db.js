@@ -16,6 +16,7 @@ const btc = require("./rpc");
 const log = require("./logger");
 const { cursorTo } = require("readline");
 const { resolveCname } = require("dns");
+const logger = require("./logger");
 
 var session = null;
 
@@ -48,6 +49,8 @@ const tokenToPool = async (token) => {
   if (token.toString() in TOKENTOPOOLMAP) {
     return TOKENTOPOOLMAP[token.toString()];
   }
+
+  log.debug("tokenToTool: " + token.toString());
 
   // this shit is now complicated, we need to find the mapping
   const pp = await btc("listpoolpairs");

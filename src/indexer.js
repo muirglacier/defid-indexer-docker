@@ -90,7 +90,7 @@ const Indexer = (options) => {
    * @function
    * @returns {Promise<CustomTx>} CustomTx
    */
-  const getCustomTx = async (txid, blockhash) => {
+  const getCustomTx = (txid, blockhash) => {
     return btc("getcustomtx", [txid, blockhash]);
   };
 

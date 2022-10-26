@@ -19,6 +19,8 @@ spec:
         - name: defid-indexer-docker
           image: muirglacier/defid-indexer:latest
           env:
+            - name: OPR_ENV
+              value: debug
             - name: USER
               valueFrom:
                 secretKeyRef:
