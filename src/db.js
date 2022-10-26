@@ -69,22 +69,20 @@ const tokenToPool = async (token) => {
   }
 };
 
-const retreiveAnyPoolOnDemand = (poolId) => {
-  return new Promise(async (resolve, reject) => {
-    if (poolId == undefined) resolve(undefined);
-    if (!(poolId.toString() in MAPANYPOOL)) {
-      // fetch ad
-      var sort = [["blockHeight", -1.0]];
-      var limit = 1;
-      var cursor = dexprices.find({ poolId: poolId }).sort(sort).limit(limit);
-      await cursor.forEach((doc) => {
-        MAPANYPOOL[poolId.toString()] = doc;
-      });
-    }
+const retreiveAnyPoolOnDemand = async (poolId) => {
+  if (poolId == undefined) resolve(undefined);
+  if (!(poolId.toString() in MAPANYPOOL)) {
+    // fetch ad
+    var sort = [["blockHeight", -1.0]];
+    var limit = 1;
+    var cursor = dexprices.find({ poolId: poolId }).sort(sort).limit(limit);
+    await cursor.forEach((doc) => {
+      MAPANYPOOL[poolId.toString()] = doc;
+    });
+  }
 
-    if (poolId.toString() in MAPANYPOOL) resolve(MAPANYPOOL[poolId.toString()]);
-    else resolve(undefined);
-  });
+  if (poolId.toString() in MAPANYPOOL) return MAPANYPOOL[poolId.toString()];
+  else return undefined;
 };
 // must be called before any transaction is added AND at the beginning of each 400 block batch
 const preFillMainPoolsFromDB = () => {
@@ -239,8 +237,10 @@ const addTx = async (tx, blockHash, blockHeight) => {
       return;
 
     const ttp = await tokenToPool(e.token);
-    const ret = retreiveAnyPoolOnDemand(ttp);
-    if (ret != undefined) tx.state.main_pools.push(ret);
+    if (ttp != undefined) {
+      const ret = retreiveAnyPoolOnDemand(ttp);
+      if (ret != undefined) tx.state.main_pools.push(ret);
+    }
   });
 
   toPushTxn.push(tx);
