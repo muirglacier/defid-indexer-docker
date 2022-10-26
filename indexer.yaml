@@ -20,7 +20,7 @@ spec:
           image: muirglacier/defid-indexer:latest
           env:
             - name: OPR_ENV
-              value: debug
+              value: production
             - name: USER
               valueFrom:
                 secretKeyRef:

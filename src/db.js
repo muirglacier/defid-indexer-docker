@@ -176,7 +176,7 @@ const addTx = async (tx, blockHash, blockHeight) => {
 
   // record dex price if PoolSwap transaction
   if ("customTx" in tx && tx.customTx.type == "PoolSwap") {
-    await tx.state.reserve_changes.forEach(async (elem) => {
+    tx.state.reserve_changes.forEach((elem) => {
       const price = elem.newReserveA / elem.newReserveB;
       const price_reverse = elem.newReserveB / elem.newReserveA;
       const volume_a = Math.abs(elem.newReserveA - elem.oldReserveA);
@@ -234,7 +234,8 @@ const addTx = async (tx, blockHash, blockHeight) => {
   if (DUSDUSDT != undefined) tx.state.main_pools.push(DUSDUSDT);
 
   // now add all other pools that are required ("balance changes in state")
-  await tx.state.balance_changes.forEach(async (e) => {
+  for (let i = 0; i < tx.state.balance_changes.length; ++i) {
+    const e = tx.state.balance_changes[i];
     // these are covered by the base token
     if (
       e.token.toString() == "0" ||
@@ -249,7 +250,7 @@ const addTx = async (tx, blockHash, blockHeight) => {
       const ret = await retreiveAnyPoolOnDemand(ttp);
       if (ret != undefined) tx.state.main_pools.push(ret);
     }
-  });
+  }
 
   toPushTxn.push(tx);
 };
