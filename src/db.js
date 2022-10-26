@@ -81,6 +81,9 @@ const retreiveAnyPoolOnDemand = async (poolId) => {
     });
   }
 
+  console.log("retreived pool " + poolId);
+  console.log(MAPANYPOOL[poolId.toString()]);
+
   if (poolId.toString() in MAPANYPOOL) return MAPANYPOOL[poolId.toString()];
   else return undefined;
 };
