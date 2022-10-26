@@ -90,7 +90,7 @@ const Indexer = (options) => {
    * @function
    * @returns {Promise<CustomTx>} CustomTx
    */
-  const getCustomTx = (txid, blockhash) => {
+  const getCustomTx = async (txid, blockhash) => {
     return btc("getcustomtx", [txid, blockhash]);
   };
 
@@ -224,7 +224,7 @@ const Indexer = (options) => {
                 .then(async () => {
                   const specials = getSpecialsForBlock(blockHeight);
                   await specials
-                    .then((state) => {
+                    .then(async (state) => {
                       if (!Array.isArray(state)) {
                         return reject("specials object was not an array");
                       }
@@ -255,7 +255,7 @@ const Indexer = (options) => {
                           n: 100000,
                         };
 
-                        db.addSpecialTx(faketx, block.hash, blockHeight);
+                        await db.addSpecialTx(faketx, block.hash, blockHeight);
                       }
                     })
                     .catch((err) => {
