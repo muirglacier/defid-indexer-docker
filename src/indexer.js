@@ -158,7 +158,7 @@ const Indexer = (options) => {
       }
       tx["fee"] = vinvalues - voutvalues;
 
-      db.addTx(tx, blockHash, blockHeight);
+      await db.addTx(tx, blockHash, blockHeight);
       resolve();
     });
   };

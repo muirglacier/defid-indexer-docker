@@ -20,7 +20,7 @@ module.exports = {
     // Idle time between blocks
     idleBetweenBlocks: 1, // ms
     // blocks between db write operations
-    blockGrouping: 400,
+    blockGrouping: 800,
     monitorIdleTime: 5000,
   },
 };

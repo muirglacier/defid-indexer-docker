@@ -10,8 +10,12 @@ const blocks = database.collection("blocks");
 const accounts = database.collection("accounts");
 const vaults = database.collection("vaults");
 const dexprices = database.collection("dexprices");
+const allanyprices = database.collection("all-any-prices");
+const btc = require("./rpc");
+
 const log = require("./logger");
 const { cursorTo } = require("readline");
+const { resolveCname } = require("dns");
 
 var session = null;
 
@@ -29,6 +33,9 @@ var DFIUSDT = undefined;
 var DUSDUSDT = undefined;
 var DUSDDFI = undefined;
 
+var MAPANYPOOL = {};
+var TOKENTOPOOLMAP = {};
+
 const addVault = (vault) => {
   toPushVault.push(vault);
 };
@@ -37,6 +44,48 @@ const addAccount = (vault) => {
   toPushAccounts.push(vault);
 };
 
+const tokenToPool = async (token) => {
+  if (token.toString() in TOKENTOPOOLMAP) {
+    return TOKENTOPOOLMAP[token.toString()];
+  }
+
+  // this shit is now complicated, we need to find the mapping
+  const pp = await btc("listpoolpairs");
+  const keys = Object.keys(pp);
+  keys.forEach((key) => {
+    const pair = pp[key];
+    if (
+      pair.idTokenA == token.toString() ||
+      pair.idTokenB == token.toString()
+    ) {
+      TOKENTOPOOLMAP[token.toString()] = key;
+    }
+  });
+
+  if (token.toString() in TOKENTOPOOLMAP) {
+    return TOKENTOPOOLMAP[token.toString()];
+  } else {
+    return undefined;
+  }
+};
+
+const retreiveAnyPoolOnDemand = (poolId) => {
+  return new Promise(async (resolve, reject) => {
+    if (poolId == undefined) resolve(undefined);
+    if (!(poolId.toString() in MAPANYPOOL)) {
+      // fetch ad
+      var sort = [["blockHeight", -1.0]];
+      var limit = 1;
+      var cursor = dexprices.find({ poolId: poolId }).sort(sort).limit(limit);
+      await cursor.forEach((doc) => {
+        MAPANYPOOL[poolId.toString()] = doc;
+      });
+    }
+
+    if (poolId.toString() in MAPANYPOOL) resolve(MAPANYPOOL[poolId.toString()]);
+    else resolve(undefined);
+  });
+};
 // must be called before any transaction is added AND at the beginning of each 400 block batch
 const preFillMainPoolsFromDB = () => {
   return new Promise(async (resolve, reject) => {
@@ -46,6 +95,7 @@ const preFillMainPoolsFromDB = () => {
 
     var sort = [["blockHeight", -1.0]];
     var limit = 1;
+
     try {
       if (DFIUSDT == undefined) {
         var cursor = dexprices.find({ poolId: 6 }).sort(sort).limit(limit);
@@ -88,7 +138,7 @@ const addSpecialTx = (tx, blockHash, blockHeight) => {
   addTx(tx, blockHash, blockHeight);
 };
 
-const addTx = (tx, blockHash, blockHeight) => {
+const addTx = async (tx, blockHash, blockHeight) => {
   // delete some irrelevant bollocks
   delete tx["version"];
   delete tx["size"];
@@ -120,7 +170,7 @@ const addTx = (tx, blockHash, blockHeight) => {
 
   // record dex price if PoolSwap transaction
   if ("customTx" in tx && tx.customTx.type == "PoolSwap") {
-    tx.state.reserve_changes.forEach((elem) => {
+    await tx.state.reserve_changes.forEach(async (elem) => {
       const price = elem.newReserveA / elem.newReserveB;
       const price_reverse = elem.newReserveB / elem.newReserveA;
       const volume_a = Math.abs(elem.newReserveA - elem.oldReserveA);
@@ -152,6 +202,9 @@ const addTx = (tx, blockHash, blockHeight) => {
       else if (poolId == 101)
         DUSDUSDT = toPushDexPrices[keyy]; // DUSD-USDT POOL
       else if (poolId == 17) DUSDDFI = toPushDexPrices[keyy]; // DUSD-DFI POOL
+      else {
+        MAPANYPOOL[poolId] = toPushDexPrices[keyy];
+      }
     });
   }
 
@@ -163,10 +216,32 @@ const addTx = (tx, blockHash, blockHeight) => {
   if (!("main_pools" in tx.state)) {
     tx.state.main_pools = [];
   }
+  if (!("balance_changes" in tx.state)) {
+    tx.state.balance_changes = [];
+  }
+  if (!("reserve_changes" in tx.state)) {
+    tx.state.reserve_changes = [];
+  }
 
   if (DFIUSDT != undefined) tx.state.main_pools.push(DFIUSDT);
   if (DUSDDFI != undefined) tx.state.main_pools.push(DUSDDFI);
   if (DUSDUSDT != undefined) tx.state.main_pools.push(DUSDUSDT);
+
+  // now add all other pools that are required ("balance changes in state")
+  await tx.state.balance_changes.forEach(async (e) => {
+    // these are covered by the base token
+    if (
+      e.token.toString == "0" ||
+      e.token.toString == "3" ||
+      e.token.toString == "13" ||
+      e.token.toString == "15"
+    )
+      return;
+
+    const ttp = await tokenToPool(e.token);
+    const ret = retreiveAnyPoolOnDemand(ttp);
+    if (ret != undefined) tx.state.main_pools.push(ret);
+  });
 
   toPushTxn.push(tx);
 };
