@@ -81,8 +81,8 @@ const retreiveAnyPoolOnDemand = async (poolId) => {
     });
   }
 
-  console.log("retreived pool " + poolId);
-  console.log(MAPANYPOOL[poolId.toString()]);
+  //console.log("retreived pool " + poolId);
+  //console.log(MAPANYPOOL[poolId.toString()]);
 
   if (poolId.toString() in MAPANYPOOL) return MAPANYPOOL[poolId.toString()];
   else return undefined;
@@ -204,7 +204,7 @@ const addTx = async (tx, blockHash, blockHeight) => {
         DUSDUSDT = toPushDexPrices[keyy]; // DUSD-USDT POOL
       else if (poolId == 17) DUSDDFI = toPushDexPrices[keyy]; // DUSD-DFI POOL
       else {
-        MAPANYPOOL[poolId] = toPushDexPrices[keyy];
+        MAPANYPOOL[poolId.toString()] = toPushDexPrices[keyy];
       }
     });
   }
