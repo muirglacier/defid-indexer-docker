@@ -229,10 +229,10 @@ const addTx = async (tx, blockHash, blockHeight) => {
   await tx.state.balance_changes.forEach(async (e) => {
     // these are covered by the base token
     if (
-      e.token.toString == "0" ||
-      e.token.toString == "3" ||
-      e.token.toString == "13" ||
-      e.token.toString == "15"
+      e.token.toString() == "0" ||
+      e.token.toString() == "3" ||
+      e.token.toString() == "13" ||
+      e.token.toString() == "15"
     )
       return;
 
