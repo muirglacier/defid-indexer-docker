@@ -234,6 +234,7 @@ const addTx = async (tx, blockHash, blockHeight) => {
   if (DUSDUSDT != undefined) tx.state.main_pools.push(DUSDUSDT);
 
   // now add all other pools that are required ("balance changes in state")
+  let doubles = [];
   for (let i = 0; i < tx.state.balance_changes.length; ++i) {
     const e = tx.state.balance_changes[i];
     // these are covered by the base token
@@ -248,7 +249,11 @@ const addTx = async (tx, blockHash, blockHeight) => {
     const ttp = await tokenToPool(e.token);
     if (ttp != undefined) {
       const ret = await retreiveAnyPoolOnDemand(ttp);
-      if (ret != undefined) tx.state.main_pools.push(ret);
+      if (ret != undefined)
+        if (!(ttp in doubles)) {
+          doubles.push(ttp);
+          tx.state.main_pools.push(ret);
+        }
     }
   }
 

@@ -125,10 +125,10 @@ const Indexer = (options) => {
               .then((state) => {
                 tx["state"] = state;
               })
-              .catch((err) => {});
+              .catch((err) => {}); // todo
           }
         })
-        .catch((err) => {});
+        .catch((err) => {}); // todo
 
       // now fix up the vins with proper sender addresses
       let vinvalues = 0;
@@ -158,8 +158,9 @@ const Indexer = (options) => {
       }
       tx["fee"] = vinvalues - voutvalues;
 
-      await db.addTx(tx, blockHash, blockHeight);
-      resolve();
+      db.addTx(tx, blockHash, blockHeight)
+        .then(() => resolve())
+        .catch((e) => reject(e));
     });
   };
 
@@ -175,23 +176,23 @@ const Indexer = (options) => {
    * @returns {Promise<Object>} { totalIndexed }
    */
   const indexTxs = (txs, blockHash, blockHeight, blockTime) => {
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       // Parse txs array sequentially
       for (let x = 0; x < txs.length; ++x) {
         let tx = txs[x];
         // Extract and save all metatags for
         // this transaction (if found)
-        await saveMeta(tx, blockHash, blockHeight, blockTime, x)
-          .then(() => {})
+        saveMeta(tx, blockHash, blockHeight, blockTime, x)
+          .then(() => {
+            const totalIndexed = txs.length;
+            resolve({ success: true, totalIndexed });
+          })
           .catch((err) => {
             log.error("Failed indexing tx:", tx.txid);
             log.error(err);
-            return reject(err);
+            reject(err);
           });
       }
-
-      const totalIndexed = txs.length;
-      resolve({ success: true, totalIndexed });
     });
   };
 
@@ -255,7 +256,9 @@ const Indexer = (options) => {
                           n: 100000,
                         };
 
-                        await db.addSpecialTx(faketx, block.hash, blockHeight);
+                        await db
+                          .addSpecialTx(faketx, block.hash, blockHeight)
+                          .catch((e) => reject(e));
                       }
                     })
                     .catch((err) => {
@@ -322,14 +325,14 @@ const Indexer = (options) => {
     let times = _.add(_.subtract(end, start), 1);
 
     log.info("Syncing blocks.");
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       for (let idx = 0; idx < times; ++idx) {
         // start new mongodb transaction for bulk writes
         if (idx == 0) {
           try {
             db.startTransaction();
           } catch (e) {
-            await db.abortTransaction();
+            db.abortTransaction();
             return reject(e);
           }
         }
