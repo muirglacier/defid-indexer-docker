@@ -176,23 +176,27 @@ const Indexer = (options) => {
    * @returns {Promise<Object>} { totalIndexed }
    */
   const indexTxs = (txs, blockHash, blockHeight, blockTime) => {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       // Parse txs array sequentially
+
+      let rejected = false;
       for (let x = 0; x < txs.length; ++x) {
+        if (rejected) break;
         let tx = txs[x];
         // Extract and save all metatags for
         // this transaction (if found)
-        saveMeta(tx, blockHash, blockHeight, blockTime, x)
-          .then(() => {
-            const totalIndexed = txs.length;
-            resolve({ success: true, totalIndexed });
-          })
+        await saveMeta(tx, blockHash, blockHeight, blockTime, x)
+          .then(() => {})
           .catch((err) => {
             log.error("Failed indexing tx:", tx.txid);
             log.error(err);
+            rejected = true;
             reject(err);
           });
       }
+
+      const totalIndexed = txs.length;
+      if (!rejected) resolve({ success: true, totalIndexed });
     });
   };
 

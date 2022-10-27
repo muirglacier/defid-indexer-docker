@@ -125,6 +125,7 @@ const preFillMainPoolsFromDB = () => {
       }
     } catch (e) {
       reject(e);
+      return;
     }
 
     resolve();
@@ -141,7 +142,7 @@ const consolidateDexPrices = () => {
 
 // useless proxy function for now
 const addSpecialTx = (tx, blockHash, blockHeight) => {
-  addTx(tx, blockHash, blockHeight);
+  return addTx(tx, blockHash, blockHeight);
 };
 
 const addTx = async (tx, blockHash, blockHeight) => {
