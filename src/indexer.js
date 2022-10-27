@@ -105,7 +105,7 @@ const Indexer = (options) => {
    * @param {Number} blockHeight Block Height
    * @returns {Promise}
    */
-  const saveMeta = async (tx, blockHash, blockHeight, blockTime, n) => {
+  const saveMeta = (tx, blockHash, blockHeight, blockTime, n) => {
     return new Promise(async (resolve, reject) => {
       tx["time"] = blockTime;
       tx["n"] = n;
@@ -158,7 +158,8 @@ const Indexer = (options) => {
       }
       tx["fee"] = vinvalues - voutvalues;
 
-      db.addTx(tx, blockHash, blockHeight)
+      await db
+        .addTx(tx, blockHash, blockHeight)
         .then(() => resolve())
         .catch((e) => reject(e));
     });
