@@ -313,58 +313,69 @@ const startTransaction = () => {
   session.startTransaction(transactionOptions);
 };
 
-const commitTransaction = async (blockHeight) => {
-  const query = { _id: crypto.createHash("md5").update("stats").digest("hex") };
+const commitTransaction = (blockHeight) => {
+  return new Promise(async (resolve, reject) => {
+    const query = {
+      _id: crypto.createHash("md5").update("stats").digest("hex"),
+    };
 
-  // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
-  consolidateDexPrices();
+    // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
+    consolidateDexPrices();
 
-  await stats.replaceOne(query, cachedLastStatsUncomitted, {
-    session: session,
-    upsert: true,
-  });
-  log.info(
-    "#" + blockHeight.toString() + ":",
-    toPushBlocks.length,
-    "blk",
-    toPushTxn.length,
-    "tx",
-    toPushVault.length,
-    "vaults",
-    toPushAccounts.length,
-    "acc",
-    finalToPushDexPrices.length,
-    "pri"
-  );
-
-  if (toPushBlocks.length > 0)
-    await blocks.insertMany(toPushBlocks, { session });
-  toPushBlocks = [];
-  if (toPushTxn.length > 0) await txs.insertMany(toPushTxn, { session });
-  toPushTxn = [];
-  if (toPushVault.length > 0) await vaults.insertMany(toPushVault, { session });
-  toPushVault = [];
-  if (toPushAccounts.length > 0)
-    await accounts.insertMany(toPushAccounts, { session });
-  toPushAccounts = [];
-  if (finalToPushDexPrices.length > 0)
-    await dexprices.insertMany(finalToPushDexPrices, { session });
-  finalToPushDexPrices = [];
-  toPushDexPrices = {};
-
-  return session
-    .commitTransaction()
-    .then(() => {
-      cachedLastStats = cachedLastStatsUncomitted;
-      cachedLastStatsUncomitted = null;
-      session.endSession();
-      session = null;
-    })
-    .catch((err) => {
-      cachedLastStats = null;
-      cachedLastStatsUncomitted = null;
-      throw err;
+    await stats.replaceOne(query, cachedLastStatsUncomitted, {
+      session: session,
+      upsert: true,
     });
+    log.info(
+      "#" + blockHeight.toString() + ":",
+      toPushBlocks.length,
+      "blk",
+      toPushTxn.length,
+      "tx",
+      toPushVault.length,
+      "vaults",
+      toPushAccounts.length,
+      "acc",
+      finalToPushDexPrices.length,
+      "pri"
+    );
+
+    if (toPushBlocks.length > 0)
+      await blocks.insertMany(toPushBlocks, { session });
+    toPushBlocks = [];
+    if (toPushTxn.length > 0) {
+      toPushTxn.forEach((e) => {
+        console.log(e.txid);
+      });
+      await txs.insertMany(toPushTxn, { session });
+    }
+    toPushTxn = [];
+    if (toPushVault.length > 0)
+      await vaults.insertMany(toPushVault, { session });
+    toPushVault = [];
+    if (toPushAccounts.length > 0)
+      await accounts.insertMany(toPushAccounts, { session });
+    toPushAccounts = [];
+    if (finalToPushDexPrices.length > 0)
+      await dexprices.insertMany(finalToPushDexPrices, { session });
+    finalToPushDexPrices = [];
+    toPushDexPrices = {};
+
+    session
+      .commitTransaction()
+      .then(() => {
+        cachedLastStats = cachedLastStatsUncomitted;
+        cachedLastStatsUncomitted = null;
+        session.endSession();
+        session = null;
+        resolve();
+      })
+      .catch((err) => {
+        cachedLastStats = null;
+        cachedLastStatsUncomitted = null;
+        reject(err);
+      });
+  });
 };
 
 const cleanTransaction = () => {
