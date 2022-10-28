@@ -255,7 +255,7 @@ const addTx = async (tx, blockHash, blockHeight) => {
       e.token.toString() == "13" ||
       e.token.toString() == "15"
     )
-      return;
+      continue;
 
     const ttp = await tokenToPool(e.token);
     if (ttp != undefined) {
