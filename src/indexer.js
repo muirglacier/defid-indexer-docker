@@ -105,63 +105,60 @@ const Indexer = (options) => {
    * @param {Number} blockHeight Block Height
    * @returns {Promise}
    */
-  const saveMeta = (tx, blockHash, blockHeight, blockTime, n) => {
-    return new Promise(async (resolve, reject) => {
-      tx["time"] = blockTime;
-      tx["n"] = n;
+  const saveMeta = async (tx, blockHash, blockHeight, blockTime, n) => {
+    tx["time"] = blockTime;
+    tx["n"] = n;
 
-      await getCustomTx(tx.txid, blockHash)
-        .then(async (txcustom) => {
-          if (txcustom?.valid == true) {
-            delete txcustom["blockHash"];
-            delete txcustom["blockHeight"];
-            delete txcustom["blockTime"];
-            delete txcustom["confirmations"];
-            delete txcustom["valid"];
-            tx["customTx"] = txcustom;
+    await getCustomTx(tx.txid, blockHash)
+      .then(async (txcustom) => {
+        if (txcustom?.valid == true) {
+          delete txcustom["blockHash"];
+          delete txcustom["blockHeight"];
+          delete txcustom["blockTime"];
+          delete txcustom["confirmations"];
+          delete txcustom["valid"];
+          tx["customTx"] = txcustom;
 
-            const statefet = getStateChange(tx.txid, blockHeight);
-            await statefet
-              .then((state) => {
-                tx["state"] = state;
-              })
-              .catch((err) => {}); // todo
-          }
-        })
-        .catch((err) => {}); // todo
-
-      // now fix up the vins with proper sender addresses
-      let vinvalues = 0;
-      for (var i = 0; i < tx.vin.length; ++i) {
-        if ("txid" in tx.vin[i]) {
-          await getVout(tx.vin[i].txid)
-            .then((prev) => {
-              if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
-                tx.vin[i]["sender"] =
-                  prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
-              } else {
-                tx.vin[i]["data"] = "true";
-              }
-              tx.vin[i]["value"] = prev.vout[tx.vin[i].vout].value;
-              vinvalues += prev.vout[tx.vin[i].vout].value;
+          const statefet = getStateChange(tx.txid, blockHeight);
+          await statefet
+            .then((state) => {
+              tx["state"] = state;
             })
-            .catch((err) => {
-              reject(err);
-            });
+            .catch((err) => {}); // todo
         }
-      }
+      })
+      .catch((err) => {}); // todo
 
-      // now calculate fee paid, and store
-      let voutvalues = 0;
-      for (var i = 0; i < tx.vout.length; ++i) {
-        voutvalues += tx.vout[i].value;
+    // now fix up the vins with proper sender addresses
+    let vinvalues = 0;
+    for (var i = 0; i < tx.vin.length; ++i) {
+      if ("txid" in tx.vin[i]) {
+        await getVout(tx.vin[i].txid)
+          .then((prev) => {
+            if ("addresses" in prev.vout[tx.vin[i].vout].scriptPubKey) {
+              tx.vin[i]["sender"] =
+                prev.vout[tx.vin[i].vout].scriptPubKey.addresses[0];
+            } else {
+              tx.vin[i]["data"] = "true";
+            }
+            tx.vin[i]["value"] = prev.vout[tx.vin[i].vout].value;
+            vinvalues += prev.vout[tx.vin[i].vout].value;
+          })
+          .catch((err) => {
+            reject(err);
+          });
       }
-      tx["fee"] = vinvalues - voutvalues;
+    }
 
-      await db
-        .addTx(tx, blockHash, blockHeight)
-        .then(() => resolve())
-        .catch((e) => reject(e));
+    // now calculate fee paid, and store
+    let voutvalues = 0;
+    for (var i = 0; i < tx.vout.length; ++i) {
+      voutvalues += tx.vout[i].value;
+    }
+    tx["fee"] = vinvalues - voutvalues;
+
+    await db.addTx(tx, blockHash, blockHeight).catch((e) => {
+      throw e;
     });
   };
 
@@ -176,29 +173,27 @@ const Indexer = (options) => {
    * @param {String} blockHeight
    * @returns {Promise<Object>} { totalIndexed }
    */
-  const indexTxs = (txs, blockHash, blockHeight, blockTime) => {
-    return new Promise(async (resolve, reject) => {
-      // Parse txs array sequentially
+  const indexTxs = async (txs, blockHash, blockHeight, blockTime) => {
+    // Parse txs array sequentially
 
-      let rejected = false;
-      for (let x = 0; x < txs.length; ++x) {
-        if (rejected) break;
-        let tx = txs[x];
-        // Extract and save all metatags for
-        // this transaction (if found)
-        await saveMeta(tx, blockHash, blockHeight, blockTime, x)
-          .then(() => {})
-          .catch((err) => {
-            log.error("Failed indexing tx:", tx.txid);
-            log.error(err);
-            rejected = true;
-            reject(err);
-          });
-      }
+    let rejected = false;
+    for (let x = 0; x < txs.length; ++x) {
+      if (rejected) break;
+      let tx = txs[x];
+      // Extract and save all metatags for
+      // this transaction (if found)
+      await saveMeta(tx, blockHash, blockHeight, blockTime, x)
+        .then(() => {})
+        .catch((err) => {
+          log.error("Failed indexing tx:", tx.txid);
+          log.error(err);
+          rejected = true;
+          throw err;
+        });
+    }
 
-      const totalIndexed = txs.length;
-      if (!rejected) resolve({ success: true, totalIndexed });
-    });
+    const totalIndexed = txs.length;
+    if (!rejected) return { success: true, totalIndexed };
   };
 
   /**
@@ -330,78 +325,75 @@ const Indexer = (options) => {
     let times = _.add(_.subtract(end, start), 1);
 
     log.info("Syncing blocks.");
-    return new Promise(async (resolve, reject) => {
-      for (let idx = 0; idx < times; ++idx) {
-        // start new mongodb transaction for bulk writes
-        if (idx == 0) {
-          try {
-            db.startTransaction();
-          } catch (e) {
-            db.abortTransaction();
-            return reject(e);
-          }
+    for (let idx = 0; idx < times; ++idx) {
+      // start new mongodb transaction for bulk writes
+      if (idx == 0) {
+        try {
+          db.startTransaction();
+        } catch (e) {
+          db.abortTransaction();
+          throw e;
         }
-
-        // idx starts from 0, will include startingBlock
-        const nextBlock = _.add(start, idx);
-        await indexBlock(nextBlock)
-          .then(async () => {
-            pushCounter++;
-            if (pushCounter >= BLOCK_GROUPING) {
-              // push everything to the DB, and create a new session for the next batch
-              await db
-                .commitTransaction(nextBlock)
-                .then(() => {
-                  pushCounter = 0;
-                })
-                .catch(async (reason) => {
-                  log.error("Fatal error during transaction comittment.");
-                  log.error("Error follows:");
-                  log.error(reason.toString());
-                  pushCounter = 0;
-
-                  // abort all transactions
-                  try {
-                    await db.abortTransaction();
-                  } catch (e) {}
-                  reject(reason);
-                });
-
-              try {
-                db.startTransaction();
-              } catch (e) {
-                await db.abortTransaction();
-                return reject(e);
-              }
-            }
-          })
-          .catch((err) => {
-            return reject(err);
-          });
       }
 
-      if (pushCounter >= 0) {
-        await db
-          .commitTransaction("final push")
-          .then(() => {
-            pushCounter = 0;
-          })
-          .catch(async (reason) => {
-            log.error("Fatal error during transaction comittment.");
-            log.error("Error follows:");
-            log.error(reason.toString());
-            pushCounter = 0;
+      // idx starts from 0, will include startingBlock
+      const nextBlock = _.add(start, idx);
+      await indexBlock(nextBlock)
+        .then(async () => {
+          pushCounter++;
+          if (pushCounter >= BLOCK_GROUPING) {
+            // push everything to the DB, and create a new session for the next batch
+            await db
+              .commitTransaction(nextBlock)
+              .then(() => {
+                pushCounter = 0;
+              })
+              .catch(async (reason) => {
+                log.error("Fatal error during transaction comittment.");
+                log.error("Error follows:");
+                log.error(reason.toString());
+                pushCounter = 0;
 
-            // abort all transactions
+                // abort all transactions
+                try {
+                  await db.abortTransaction();
+                } catch (e) {}
+                throw reason;
+              });
+
             try {
+              db.startTransaction();
+            } catch (e) {
               await db.abortTransaction();
-            } catch (e) {}
+              return reject(e);
+            }
+          }
+        })
+        .catch((err) => {
+          throw err;
+        });
+    }
 
-            reject(reason);
-          });
-      }
-      resolve();
-    });
+    if (pushCounter >= 0) {
+      await db
+        .commitTransaction("final push")
+        .then(() => {
+          pushCounter = 0;
+        })
+        .catch(async (reason) => {
+          log.error("Fatal error during transaction comittment.");
+          log.error("Error follows:");
+          log.error(reason.toString());
+          pushCounter = 0;
+
+          // abort all transactions
+          try {
+            await db.abortTransaction();
+          } catch (e) {}
+
+          throw reason;
+        });
+    }
   };
 
   /**

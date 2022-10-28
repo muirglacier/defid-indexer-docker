@@ -93,43 +93,36 @@ const retreiveAnyPoolOnDemand = async (poolId) => {
   else return undefined;
 };
 // must be called before any transaction is added AND at the beginning of each 400 block batch
-const preFillMainPoolsFromDB = () => {
-  return new Promise(async (resolve, reject) => {
-    DFIUSDT = undefined;
-    DUSDUSDT = undefined;
-    DUSDDFI = undefined;
+const preFillMainPoolsFromDB = async () => {
+  DFIUSDT = undefined;
+  DUSDUSDT = undefined;
+  DUSDDFI = undefined;
 
-    var sort = [["blockHeight", -1.0]];
-    var limit = 1;
+  var sort = [["blockHeight", -1.0]];
+  var limit = 1;
 
-    try {
-      if (DFIUSDT == undefined) {
-        var cursor = dexprices.find({ poolId: 6 }).sort(sort).limit(limit);
-        await cursor.forEach((doc) => {
-          DFIUSDT = doc;
-        });
-      }
+  if (DFIUSDT == undefined) {
+    var cursor = dexprices.find({ poolId: 6 }).sort(sort).limit(limit);
+    await cursor.forEach((doc) => {
+      DFIUSDT = doc;
+    });
+  }
 
-      if (DUSDUSDT == undefined) {
-        var cursor2 = dexprices.find({ poolId: 101 }).sort(sort).limit(limit);
-        await cursor2.forEach((doc) => {
-          DUSDUSDT = doc;
-        });
-      }
+  if (DUSDUSDT == undefined) {
+    var cursor2 = dexprices.find({ poolId: 101 }).sort(sort).limit(limit);
+    await cursor2.forEach((doc) => {
+      DUSDUSDT = doc;
+    });
+  }
 
-      if (DUSDDFI == undefined) {
-        var cursor3 = dexprices.find({ poolId: 17 }).sort(sort).limit(limit);
-        await cursor3.forEach((doc) => {
-          DUSDDFI = doc;
-        });
-      }
-    } catch (e) {
-      reject(e);
-      return;
-    }
+  if (DUSDDFI == undefined) {
+    var cursor3 = dexprices.find({ poolId: 17 }).sort(sort).limit(limit);
+    await cursor3.forEach((doc) => {
+      DUSDDFI = doc;
+    });
+  }
 
-    resolve();
-  });
+  return;
 };
 
 // this must be called at the end of the tx processing
@@ -313,69 +306,62 @@ const startTransaction = () => {
   session.startTransaction(transactionOptions);
 };
 
-const commitTransaction = (blockHeight) => {
-  return new Promise(async (resolve, reject) => {
-    const query = {
-      _id: crypto.createHash("md5").update("stats").digest("hex"),
-    };
+const commitTransaction = async (blockHeight) => {
+  const query = {
+    _id: crypto.createHash("md5").update("stats").digest("hex"),
+  };
 
-    // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
-    consolidateDexPrices();
+  // make sure to trigger the Dex Price "fixing" - eg, write aggregated (by poolId) dex price and volumina per block
+  consolidateDexPrices();
 
-    await stats.replaceOne(query, cachedLastStatsUncomitted, {
-      session: session,
-      upsert: true,
-    });
-    log.info(
-      "#" + blockHeight.toString() + ":",
-      toPushBlocks.length,
-      "blk",
-      toPushTxn.length,
-      "tx",
-      toPushVault.length,
-      "vaults",
-      toPushAccounts.length,
-      "acc",
-      finalToPushDexPrices.length,
-      "pri"
-    );
-
-    if (toPushBlocks.length > 0)
-      await blocks.insertMany(toPushBlocks, { session });
-    toPushBlocks = [];
-    if (toPushTxn.length > 0) {
-      toPushTxn.forEach((e) => {
-        console.log(e.txid);
-      });
-      await txs.insertMany(toPushTxn, { session });
-    }
-    toPushTxn = [];
-    if (toPushVault.length > 0)
-      await vaults.insertMany(toPushVault, { session });
-    toPushVault = [];
-    if (toPushAccounts.length > 0)
-      await accounts.insertMany(toPushAccounts, { session });
-    toPushAccounts = [];
-    if (finalToPushDexPrices.length > 0)
-      await dexprices.insertMany(finalToPushDexPrices, { session });
-    finalToPushDexPrices = [];
-    toPushDexPrices = {};
-
-    session
-      .commitTransaction()
-      .then(() => {
-        cachedLastStats = cachedLastStatsUncomitted;
-        cachedLastStatsUncomitted = null;
-        session.endSession();
-        session = null;
-        resolve();
-      })
-      .catch((err) => {
-        cachedLastStats = null;
-        cachedLastStatsUncomitted = null;
-        reject(err);
-      });
+  await stats.replaceOne(query, cachedLastStatsUncomitted, {
+    session: session,
+    upsert: true,
   });
+  log.info(
+    "#" + blockHeight.toString() + ":",
+    toPushBlocks.length,
+    "blk",
+    toPushTxn.length,
+    "tx",
+    toPushVault.length,
+    "vaults",
+    toPushAccounts.length,
+    "acc",
+    finalToPushDexPrices.length,
+    "pri"
+  );
+
+  if (toPushBlocks.length > 0)
+    await blocks.insertMany(toPushBlocks, { session });
+  toPushBlocks = [];
+  if (toPushTxn.length > 0) {
+    await txs.insertMany(toPushTxn, { session });
+  }
+  toPushTxn = [];
+  if (toPushVault.length > 0) await vaults.insertMany(toPushVault, { session });
+  toPushVault = [];
+  if (toPushAccounts.length > 0)
+    await accounts.insertMany(toPushAccounts, { session });
+  toPushAccounts = [];
+  if (finalToPushDexPrices.length > 0)
+    await dexprices.insertMany(finalToPushDexPrices, { session });
+  finalToPushDexPrices = [];
+  toPushDexPrices = {};
+
+  await session
+    .commitTransaction()
+    .then(() => {
+      cachedLastStats = cachedLastStatsUncomitted;
+      cachedLastStatsUncomitted = null;
+      session.endSession();
+      session = null;
+    })
+    .catch((err) => {
+      cachedLastStats = null;
+      cachedLastStatsUncomitted = null;
+      throw err;
+    });
 };
 
 const cleanTransaction = () => {
