@@ -6,6 +6,7 @@ const db = require("./db");
 const btc = require("./rpc");
 const log = require("./logger");
 const { execPath } = require("process");
+const { time } = require("console");
 
 const IDLE_BETWEEN_BLOCKS = _.get("index.idleBetweenBlocks", config);
 const IDLE_BETWEEN_TXS = _.get("index.idleBetweenTxs", config);
@@ -178,6 +179,8 @@ const Indexer = (options) => {
 
     let rejected = false;
     for (let x = 0; x < txs.length; ++x) {
+      console.log(tx.txid);
+      await new Promise((r) => setTimeout(r, 500));
       if (rejected) break;
       let tx = txs[x];
       // Extract and save all metatags for
