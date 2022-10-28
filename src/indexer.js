@@ -179,10 +179,11 @@ const Indexer = (options) => {
 
     let rejected = false;
     for (let x = 0; x < txs.length; ++x) {
+      let tx = txs[x];
+
       console.log(tx.txid);
       await new Promise((r) => setTimeout(r, 500));
       if (rejected) break;
-      let tx = txs[x];
       // Extract and save all metatags for
       // this transaction (if found)
       await saveMeta(tx, blockHash, blockHeight, blockTime, x)
