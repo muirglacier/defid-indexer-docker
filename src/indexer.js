@@ -208,15 +208,19 @@ const Indexer = (options) => {
    * @returns {Promise<Object>} Return the total meta indexed
    */
   const indexBlock = async (blockHeight) => {
+    let globBlock = undefined;
     await btc("getblockhash", [blockHeight])
       .then((hash) => btc("getblock", [hash, 2]))
       .then((block) => {
+        globBlock = block;
         _bl = JSON.parse(JSON.stringify(block));
         db.addBlock(_bl);
         db.addChainLastStats(block.hash, blockHeight);
         return db.preFillMainPoolsFromDB();
       })
-      .then(() => indexTxs(block.tx, block.hash, blockHeight, block.time))
+      .then(() =>
+        indexTxs(globBlock.tx, globBlock.hash, blockHeight, globBlock.time)
+      )
       .then(() => getSpecialsForBlock(blockHeight))
       .then((state) => {
         if (!Array.isArray(state)) {
@@ -244,12 +248,12 @@ const Indexer = (options) => {
             specials: state,
             vin: [],
             vout: [],
-            time: block.time,
+            time: globBlock.time,
             state: fakestate,
             n: 100000,
           };
 
-          return db.addSpecialTx(faketx, block.hash, blockHeight);
+          return db.addSpecialTx(faketx, globBlock.hash, blockHeight);
         }
       })
       .catch((err) => {
