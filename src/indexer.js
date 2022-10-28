@@ -110,8 +110,21 @@ const Indexer = (options) => {
     tx["time"] = blockTime;
     tx["n"] = n;
 
+    if (
+      tx.txid ==
+      "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+    )
+      console.log(tx);
+
     await getCustomTx(tx.txid, blockHash)
       .then((txcustom) => {
+        if (
+          tx.txid ==
+          "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+        ) {
+          console.log("retreived custom:");
+          console.log(txcustom);
+        }
         if (txcustom?.valid == true) {
           delete txcustom["blockHash"];
           delete txcustom["blockHeight"];
@@ -123,6 +136,13 @@ const Indexer = (options) => {
         return getStateChange(tx.txid, blockHeight);
       })
       .then((state) => {
+        if (
+          tx.txid ==
+          "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+        ) {
+          console.log("retreived state change:");
+          console.log(state);
+        }
         tx["state"] = state;
       })
       .catch((err) => {}); // todo
@@ -143,10 +163,16 @@ const Indexer = (options) => {
             vinvalues += prev.vout[tx.vin[i].vout].value;
           })
           .catch((err) => {
-            reject(err);
+            throw err;
           });
       }
     }
+
+    if (
+      tx.txid ==
+      "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+    )
+      console.log("filled in VIN values");
 
     // now calculate fee paid, and store
     let voutvalues = 0;
@@ -179,6 +205,12 @@ const Indexer = (options) => {
       let tx = txs[x];
 
       if (rejected) break;
+
+      if (
+        tx.txid ==
+        "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+      )
+        console.log("Starting marker:", tx.txid);
       // Extract and save all metatags for
       // this transaction (if found)
       await saveMeta(tx, blockHash, blockHeight, blockTime, x)

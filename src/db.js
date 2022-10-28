@@ -139,6 +139,11 @@ const addSpecialTx = (tx, blockHash, blockHeight) => {
 };
 
 const addTx = async (tx, blockHash, blockHeight) => {
+  if (
+    tx.txid ==
+    "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+  )
+    console.log("adding to db now");
   // delete some irrelevant bollocks
   delete tx["version"];
   delete tx["size"];
@@ -164,6 +169,12 @@ const addTx = async (tx, blockHash, blockHeight) => {
     }
     delete tx.vout[i]["scriptPubKey"];
   }
+
+  if (
+    tx.txid ==
+    "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+  )
+    console.log("fixed vins and vouts in addTx()");
 
   tx["blockHash"] = blockHash;
   tx["blockHeight"] = blockHeight;
@@ -208,6 +219,12 @@ const addTx = async (tx, blockHash, blockHeight) => {
     });
   }
 
+  if (
+    tx.txid ==
+    "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+  )
+    console.log("poolswaps rectified");
+
   // now, all customTX receive a DEX price for the three main pools recorded
   if (!("state" in tx)) {
     tx.state = {};
@@ -251,6 +268,11 @@ const addTx = async (tx, blockHash, blockHeight) => {
     }
   }
 
+  if (
+    tx.txid ==
+    "522954ffdc481b6259f730b10626b945cd479d0b6f1e1b9f7b93cf72a233c6db"
+  )
+    console.log("last step, adding TX to array");
   toPushTxn.push(tx);
 };
 
