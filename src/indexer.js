@@ -111,7 +111,7 @@ const Indexer = (options) => {
     tx["n"] = n;
 
     await getCustomTx(tx.txid, blockHash)
-      .then(async (txcustom) => {
+      .then((txcustom) => {
         if (txcustom?.valid == true) {
           delete txcustom["blockHash"];
           delete txcustom["blockHeight"];
@@ -119,14 +119,11 @@ const Indexer = (options) => {
           delete txcustom["confirmations"];
           delete txcustom["valid"];
           tx["customTx"] = txcustom;
-
-          const statefet = getStateChange(tx.txid, blockHeight);
-          await statefet
-            .then((state) => {
-              tx["state"] = state;
-            })
-            .catch((err) => {}); // todo
         }
+        return getStateChange(tx.txid, blockHeight);
+      })
+      .then((state) => {
+        tx["state"] = state;
       })
       .catch((err) => {}); // todo
 
@@ -181,8 +178,6 @@ const Indexer = (options) => {
     for (let x = 0; x < txs.length; ++x) {
       let tx = txs[x];
 
-      console.log(tx.txid);
-      await new Promise((r) => setTimeout(r, 500));
       if (rejected) break;
       // Extract and save all metatags for
       // this transaction (if found)
@@ -212,105 +207,55 @@ const Indexer = (options) => {
    * @param {Number} blockHeight Block height to save for
    * @returns {Promise<Object>} Return the total meta indexed
    */
-  const indexBlock = (blockHeight) => {
-    return new Promise((resolve, reject) => {
-      btc("getblockhash", [blockHeight])
-        .then((hash) => btc("getblock", [hash, 2]))
-        .then(async (block) => {
-          _bl = JSON.parse(JSON.stringify(block));
-          db.addBlock(_bl);
-          db.addChainLastStats(block.hash, blockHeight);
+  const indexBlock = async (blockHeight) => {
+    await btc("getblockhash", [blockHeight])
+      .then((hash) => btc("getblock", [hash, 2]))
+      .then((block) => {
+        _bl = JSON.parse(JSON.stringify(block));
+        db.addBlock(_bl);
+        db.addChainLastStats(block.hash, blockHeight);
+        return db.preFillMainPoolsFromDB();
+      })
+      .then(() => indexTxs(block.tx, block.hash, blockHeight, block.time))
+      .then(() => getSpecialsForBlock(blockHeight))
+      .then((state) => {
+        if (!Array.isArray(state)) {
+          return reject("specials object was not an array");
+        }
 
-          // get latest 3 main pools (if present) so the first TX will have the latest prices available
-          await db
-            .preFillMainPoolsFromDB()
-            .then(async () => {
-              await indexTxs(block.tx, block.hash, blockHeight, block.time)
-                .then(async () => {
-                  const specials = getSpecialsForBlock(blockHeight);
-                  await specials
-                    .then(async (state) => {
-                      if (!Array.isArray(state)) {
-                        return reject("specials object was not an array");
-                      }
+        let nullid =
+          "0000000000000000000000000000000000000000000000000000000000000000";
+        let fakestate = { balance_changes: [], main_pools: [] };
 
-                      let nullid =
-                        "0000000000000000000000000000000000000000000000000000000000000000";
-                      let fakestate = { balance_changes: [], main_pools: [] };
-
-                      // todo
-                      if (state.length > 0) {
-                        state.forEach((element) => {
-                          fakestate.balance_changes.push({
-                            owner: element.owner,
-                            token: element.token,
-                            new_amount: element.new_value,
-                          });
-                        });
-
-                        // create fake TX for block-specials
-                        let faketx = {
-                          txid: nullid,
-                          specialType: 1,
-                          specials: state,
-                          vin: [],
-                          vout: [],
-                          time: block.time,
-                          state: fakestate,
-                          n: 100000,
-                        };
-
-                        await db
-                          .addSpecialTx(faketx, block.hash, blockHeight)
-                          .catch((e) => reject(e));
-                      }
-                    })
-                    .catch((err) => {
-                      log.error(
-                        `2 Failed to index special history for ${blockHeight}.`,
-                        err
-                      );
-                      reject(err);
-                    });
-
-                  // save account history for block height
-                  const accounts = getAccountsForBlock(blockHeight);
-                  await accounts
-                    .then((state) => {
-                      if (!Array.isArray(state)) {
-                        return reject("vault object was not an array");
-                      }
-                      state.forEach((element) => {
-                        db.addAccount(element);
-                      });
-                    })
-                    .catch((err) => {
-                      log.error(
-                        `3 Failed to index account history for ${blockHeight}.`,
-                        err
-                      );
-                      reject(err);
-                    });
-
-                  resolve();
-                })
-                .catch((err) => {
-                  log.error(
-                    `Failed to index all metadata for ${blockHeight}.`,
-                    err
-                  );
-                  reject(err);
-                });
-            })
-            .catch((reason) => {
-              reject(reason);
+        // todo
+        if (state.length > 0) {
+          state.forEach((element) => {
+            fakestate.balance_changes.push({
+              owner: element.owner,
+              token: element.token,
+              new_amount: element.new_value,
             });
-        })
-        .catch((err) => {
-          log.error(`Failed to index all metadata for ${blockHeight}.`, err);
-          reject(err);
-        });
-    });
+          });
+
+          // create fake TX for block-specials
+          let faketx = {
+            txid: nullid,
+            specialType: 1,
+            specials: state,
+            vin: [],
+            vout: [],
+            time: block.time,
+            state: fakestate,
+            n: 100000,
+          };
+
+          return db.addSpecialTx(faketx, block.hash, blockHeight);
+        }
+      })
+      .catch((err) => {
+        log.error(`Failed to index all metadata for ${blockHeight}.`, err);
+        reject(err);
+      });
   };
 
   /**
@@ -342,49 +287,16 @@ const Indexer = (options) => {
 
       // idx starts from 0, will include startingBlock
       const nextBlock = _.add(start, idx);
-      await indexBlock(nextBlock)
-        .then(async () => {
-          pushCounter++;
-          if (pushCounter >= BLOCK_GROUPING) {
-            // push everything to the DB, and create a new session for the next batch
-            await db
-              .commitTransaction(nextBlock)
-              .then(() => {
-                pushCounter = 0;
-              })
-              .catch(async (reason) => {
-                log.error("Fatal error during transaction comittment.");
-                log.error("Error follows:");
-                log.error(reason.toString());
-                pushCounter = 0;
+      await indexBlock(nextBlock);
 
-                // abort all transactions
-                try {
-                  await db.abortTransaction();
-                } catch (e) {}
-                throw reason;
-              });
+      pushCounter++;
+      if (pushCounter >= BLOCK_GROUPING) {
+        // push everything to the DB, and create a new session for the next batch
 
-            try {
-              db.startTransaction();
-            } catch (e) {
-              await db.abortTransaction();
-              return reject(e);
-            }
-          }
-        })
-        .catch((err) => {
-          throw err;
-        });
-    }
-
-    if (pushCounter >= 0) {
-      await db
-        .commitTransaction("final push")
-        .then(() => {
+        try {
+          await db.commitTransaction(nextBlock);
           pushCounter = 0;
-        })
-        .catch(async (reason) => {
+        } catch (reason) {
           log.error("Fatal error during transaction comittment.");
           log.error("Error follows:");
           log.error(reason.toString());
@@ -394,9 +306,35 @@ const Indexer = (options) => {
           try {
             await db.abortTransaction();
           } catch (e) {}
-
           throw reason;
-        });
+        }
+
+        try {
+          db.startTransaction();
+        } catch (e) {
+          await db.abortTransaction();
+          throw e;
+        }
+      }
+    }
+
+    if (pushCounter >= 0) {
+      try {
+        await db.commitTransaction("final push");
+        pushCounter = 0;
+      } catch (reason) {
+        log.error("Fatal error during transaction comittment.");
+        log.error("Error follows:");
+        log.error(reason.toString());
+        pushCounter = 0;
+
+        // abort all transactions
+        try {
+          await db.abortTransaction();
+        } catch (e) {}
+
+        throw reason;
+      }
     }
   };
 
