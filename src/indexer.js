@@ -256,7 +256,7 @@ const Indexer = (options) => {
       .then(() => getSpecialsForBlock(blockHeight))
       .then((state) => {
         if (!Array.isArray(state)) {
-          return reject("specials object was not an array");
+          throw "specials object was not an array";
         }
 
         let nullid =
@@ -288,9 +288,18 @@ const Indexer = (options) => {
           return db.addSpecialTx(faketx, globBlock.hash, blockHeight);
         }
       })
+      .then(() => getAccountsForBlock(blockHeight))
+      .then((state) => {
+        if (!Array.isArray(state)) {
+          throw "vault object was not an array";
+        }
+        state.forEach((element) => {
+          db.addAccount(element);
+        });
+      })
       .catch((err) => {
         log.error(`Failed to index all metadata for ${blockHeight}.`, err);
-        reject(err);
+        throw err;
       });
   };
 
