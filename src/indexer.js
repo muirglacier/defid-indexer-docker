@@ -286,6 +286,8 @@ const Indexer = (options) => {
           };
 
           return db.addSpecialTx(faketx, globBlock.hash, blockHeight);
+        } else {
+          return Promise.resolve();
         }
       })
       .then(() => getAccountsForBlock(blockHeight))
